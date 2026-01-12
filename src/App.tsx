@@ -102,7 +102,7 @@ export default function App() {
     const client = mqtt.connect(mqttUrl, {
       clientId: "react_" + Math.random().toString(16).slice(2),
       username: "dev",          // your MQTT username
-      password: "YOUR_PASSWORD",// replace with actual password
+      password: "trAneEseNdeS_4321",// replace with actual password
       reconnectPeriod: 1500,
       clean: true
     });
