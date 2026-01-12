@@ -24,7 +24,7 @@ ChartJS.register(
 );
 
 const MAX_POINTS = 50;
-const pushRolling = (prev: number[], newVal: number): number[] =>
+const pushRolling = (prev: any[], newVal: any) =>
   [...prev.slice(-MAX_POINTS + 1), newVal];
 
 const saveToStorage = (key: string, value: any) =>
@@ -48,9 +48,7 @@ type Sensors = {
   evapAirTemp: number[];
 };
 
-type AccordionState = {
-  [key: string]: boolean;
-};
+type AccordionState = Record<string, boolean>;
 
 type SensorCardProps = {
   title: string;
@@ -76,9 +74,13 @@ export default function App() {
   const [labels, setLabels] = useState<string[]>(() => loadFromStorage<string[]>("labels", []));
   const [setpointData, setSetpointData] = useState<number[]>(() => loadFromStorage<number[]>("setpointData", []));
   const [setpoint, setSetpoint] = useState<number>(() => Number(localStorage.getItem("currentSetpoint")) || 5.0);
-  const [tempSetpointInput, setTempSetpointInput] = useState<number | "">(setpoint);
+  const [tempSetpointInput, setTempSetpointInput] = useState<number | undefined>(setpoint);
   const [accordionOpen, setAccordionOpen] = useState<AccordionState>({
-    t1: true, t2: true, t3: true, t4: true, ambient: true
+    "Compressor Outlet": true,
+    "Condenser Outlet": true,
+    "Expansion Device Outlet": true,
+    "Evaporator Outlet": true,
+    "Ambient": true
   });
 
   const clientRef = useRef<MqttClient | null>(null);
@@ -135,23 +137,23 @@ export default function App() {
           case "sensors/ambient_temp": next.ambientTemp = pushRolling(prev.ambientTemp, val); break;
           case "sensors/evap_air_temp":
             next.evapAirTemp = pushRolling(prev.evapAirTemp, val);
-            setLabels(prev => { 
-              const nextLabels = pushRolling(prev, now); 
-              saveToStorage("labels", nextLabels); 
-              return nextLabels; 
+            setLabels(prev => {
+              const nextLabels = pushRolling(prev, now);
+              saveToStorage("labels", nextLabels);
+              return nextLabels;
             });
-            setSetpointData(prev => { 
-              const spArr = pushRolling(prev, latestSetpointRef.current); 
-              saveToStorage("setpointData", spArr); 
-              return spArr; 
+            setSetpointData(prev => {
+              const spArr = pushRolling(prev, latestSetpointRef.current);
+              saveToStorage("setpointData", spArr);
+              return spArr;
             });
             saveToStorage("evapAirTemp", next.evapAirTemp);
             break;
           case "control/setpoint":
-            setSetpoint(val); 
-            latestSetpointRef.current = val; 
-            setTempSetpointInput(val); 
-            localStorage.setItem("currentSetpoint", val);
+            setSetpoint(val);
+            latestSetpointRef.current = val;
+            setTempSetpointInput(val);
+            localStorage.setItem("currentSetpoint", val.toString());
             break;
         }
         return next;
@@ -164,7 +166,7 @@ export default function App() {
   const updateSetpoint = (sp: number) => {
     setSetpoint(sp);
     latestSetpointRef.current = sp;
-    localStorage.setItem("currentSetpoint", sp);
+    localStorage.setItem("currentSetpoint", sp.toString());
     updateSetpointLine(sp);
 
     if(clientRef.current?.connected){
@@ -176,7 +178,7 @@ export default function App() {
     setAccordionOpen(prev => ({ ...prev, [group]: !prev[group] }));
   };
 
-  const formatVal = (v: number | undefined) => Number.isFinite(v!) ? v!.toFixed(1) : "—";
+  const formatVal = (v: number | undefined) => v !== undefined ? v.toFixed(1) : "—";
 
   const data = {
     labels,
@@ -187,19 +189,20 @@ export default function App() {
   };
 
   const options = {
-    responsive:true,
-    plugins:{legend:{display:true}},
-    scales:{
+    responsive: true,
+    plugins: { legend: { display: true } },
+    scales: {
       x: {
         title: { display: true, text: "Time" },
         ticks: {
-          callback: function(value: any, index: number, ticks: any) {
-            if(index === 0 || index === ticks.length - 2) return this.getLabelForValue(value);
-            return '';
+          callback: (val: any, index: number, ticks: any) => {
+            if(index === 0) return labels[0];
+            if(index === ticks.length - 1) return labels[labels.length - 1];
+            return "";
           }
         }
       },
-      y:{title:{display:true,text:"Temperature (°C)"}}
+      y: { title: { display: true, text: "Temperature (°C)" } }
     }
   };
 
@@ -214,7 +217,7 @@ export default function App() {
         <main className="main-grid">
 
           <div className="left-col">
-            {["Compressor Outlet","Condenser Outlet","Expansion Device Outlet","Evaporator Outlet","Ambient"].map(group => (
+            {Object.keys(accordionOpen).map(group => (
               <div key={group} className="accordion-group">
                 <div className="accordion-header" onClick={()=>toggleAccordion(group)}>
                   {group} Sensors {accordionOpen[group] ? "▲":"▼"}
@@ -253,11 +256,11 @@ export default function App() {
             <div className="card setpoint-card">
               <div>Set Temperature</div>
               <div className="control-row">
-                <input type="number" step="0.1" value={tempSetpointInput || ""} 
-                  onChange={e=>setTempSetpointInput(e.target.value?Number(e.target.value):"")} 
-                  onKeyDown={e=>{if(e.key==="Enter"&&tempSetpointInput!=="")updateSetpoint(tempSetpointInput as number)}} 
+                <input type="number" step="0.1" value={tempSetpointInput ?? ""} 
+                  onChange={e => setTempSetpointInput(e.target.value ? Number(e.target.value) : undefined)} 
+                  onKeyDown={e => { if(tempSetpointInput !== undefined && e.key === "Enter") updateSetpoint(tempSetpointInput); }} 
                   className="number-input"/>
-                <button className="btn" onClick={()=>tempSetpointInput!==""&&updateSetpoint(tempSetpointInput as number)}>Update</button>
+                <button className="btn" onClick={() => tempSetpointInput !== undefined && updateSetpoint(tempSetpointInput)}>Update</button>
               </div>
             </div>
           </div>
