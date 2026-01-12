@@ -24,7 +24,9 @@ ChartJS.register(
 );
 
 const MAX_POINTS = 50;
-const pushRolling = (prev: number[], newVal: number): number[] =>
+
+// Generic rolling push
+const pushRolling = <T,>(prev: T[], newVal: T): T[] =>
   [...prev.slice(-MAX_POINTS + 1), newVal];
 
 const saveToStorage = (key: string, value: any) =>
@@ -48,7 +50,9 @@ type Sensors = {
   evapAirTemp: number[];
 };
 
-type AccordionState = { [key: string]: boolean };
+type AccordionState = {
+  [key: string]: boolean;
+};
 
 type SensorCardProps = {
   title: string;
@@ -71,12 +75,10 @@ export default function App() {
     t4Temp: [], t4Pressure: [],
     ambientTemp: [], evapAirTemp: loadFromStorage<number[]>("evapAirTemp", [])
   });
-
   const [labels, setLabels] = useState<string[]>(() => loadFromStorage<string[]>("labels", []));
   const [setpointData, setSetpointData] = useState<number[]>(() => loadFromStorage<number[]>("setpointData", []));
   const [setpoint, setSetpoint] = useState<number>(() => Number(localStorage.getItem("currentSetpoint")) || 5.0);
   const [tempSetpointInput, setTempSetpointInput] = useState<number | "">(setpoint);
-
   const [accordionOpen, setAccordionOpen] = useState<AccordionState>({
     t1: true, t2: true, t3: true, t4: true, ambient: true
   });
@@ -95,11 +97,12 @@ export default function App() {
   };
 
   useEffect(() => {
-    const mqttUrl = "ws://18.218.224.28:1884"; // Use wss:// if you have TLS
+    // MQTT connection with auth
+    const mqttUrl = "ws://18.218.224.28:1884"; // Use wss:// if TLS enabled
     const client = mqtt.connect(mqttUrl, {
       clientId: "react_" + Math.random().toString(16).slice(2),
-      username: "YOUR_USERNAME",   // <-- Replace
-      password: "YOUR_PASSWORD",   // <-- Replace
+      username: "dev",          // your MQTT username
+      password: "YOUR_PASSWORD",// replace with actual password
       reconnectPeriod: 1500,
       clean: true
     });
@@ -150,9 +153,9 @@ export default function App() {
             saveToStorage("evapAirTemp", next.evapAirTemp);
             break;
           case "control/setpoint":
-            setSetpoint(val);
-            latestSetpointRef.current = val;
-            setTempSetpointInput(val);
+            setSetpoint(val); 
+            latestSetpointRef.current = val; 
+            setTempSetpointInput(val); 
             localStorage.setItem("currentSetpoint", val);
             break;
         }
@@ -160,9 +163,7 @@ export default function App() {
       });
     });
 
-    return () => {
-      if (clientRef.current) clientRef.current.end(true);
-    };
+    return () => client.end(true);
   }, []);
 
   const updateSetpoint = (sp: number) => {
@@ -197,8 +198,8 @@ export default function App() {
       x: {
         title: { display: true, text: "Time" },
         ticks: {
-          callback: function(value: any, index: number, ticks: any) {
-            if(index === 0 || index === ticks.length - 2) return this.getLabelForValue(value);
+          callback: (value: any, index: number, ticks: any) => {
+            if(index === 0 || index === ticks.length - 1) return value;
             return '';
           }
         }
@@ -216,6 +217,7 @@ export default function App() {
         </header>
 
         <main className="main-grid">
+
           <div className="left-col">
             {["Compressor Outlet","Condenser Outlet","Expansion Device Outlet","Evaporator Outlet","Ambient"].map(group => (
               <div key={group} className="accordion-group">
