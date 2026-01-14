@@ -72,7 +72,7 @@ export default function App() {
   }, []);
 
   const clientRef = useMqtt({
-    url: "wss://main.d2cje9bdfy6qes.amplifyapp.com/mqtt",
+    url: "wss://18.218.224.28/mqtt/",
     username: "dev",
     password: "trAneEseNdeS_4321",
     onMessage: handleMqttMessage
