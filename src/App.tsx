@@ -72,7 +72,7 @@ export default function App() {
   }, []);
 
   const clientRef = useMqtt({
-    url: "wss://18.218.224.28/mqtt/",
+    url: "wss://seniordesignmqtt.duckdns.org:8083",
     username: "dev",
     password: "trAneEseNdeS_4321",
     onMessage: handleMqttMessage
