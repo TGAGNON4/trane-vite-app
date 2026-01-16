@@ -25,7 +25,7 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
     clientRef.current = client;
 
     client.on("connect", () => {
-      console.log("✅ MQTT connected");
+      console.log("MQTT connected");
 
       const topics = [
         "sensors/t1_temp", "sensors/t1_pressure",
