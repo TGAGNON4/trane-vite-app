@@ -43,7 +43,7 @@ export const Graph: React.FC<GraphProps> = ({ labels, evapAirTemp, setpointData 
         backgroundColor: "#60a5fa33",
         tension: 0.35,
         pointRadius: 0,
-        cubicInterpolationMode: "monotone"
+        cubicInterpolationMode: "monotone" as const
       },
       {
         label: "Setpoint",
