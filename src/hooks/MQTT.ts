@@ -28,12 +28,12 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
       console.log("MQTT connected");
 
       const topics = [
-        "sensors/t1_temp", "sensors/t1_pressure",
-        "sensors/t2_temp", "sensors/t2_pressure",
-        "sensors/t3_temp", "sensors/t3_pressure",
-        "sensors/t4_temp", "sensors/t4_pressure",
-        "sensors/ambient_temp", "sensors/evap_air_temp",
-        "control/setpoint"
+        "HighSide_Temperature", "HighSide_AbsolutePressure",
+        "EXV_Temperature", "EXV_AbsolutePressure",
+        "LowSide_Temperature", "LowSide_AbsolutePressure",
+        "Evaporator_Temperature", "Evaporator_AbsolutePressure",
+        "Space_Temperature", "Discharge_Air_Temperature",
+        "Space_Setpoint_Temperature"
       ];
 
       topics.forEach(t => {

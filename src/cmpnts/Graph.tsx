@@ -23,14 +23,15 @@ ChartJS.register(
 );
 
 type GraphProps = {
-  labels: string[];
+  labels: number[];
   evapAirTemp: number[];
   setpointData: number[];
 };
 
 export const Graph: React.FC<GraphProps> = ({ labels, evapAirTemp, setpointData }) => {
+  const formattedLabels = labels.map(ts => new Date(ts).toLocaleTimeString());
   const data = {
-    labels,
+    labels: formattedLabels,
     datasets: [
       { label: "Evap Exit Air Temp", data: evapAirTemp, borderColor: "#60a5fa", backgroundColor: "#60a5fa33", tension: 0.2 },
       { label: "Setpoint", data: setpointData, borderColor: "#facc15", borderDash:[10,5], pointRadius:0, fill:false }
@@ -38,7 +39,9 @@ export const Graph: React.FC<GraphProps> = ({ labels, evapAirTemp, setpointData 
   };
 
   const options = {
-    responsive:true,
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
     plugins:{legend:{display:true}},
     scales:{
       x: {

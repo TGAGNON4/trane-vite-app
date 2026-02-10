@@ -27,11 +27,50 @@ export default function App() {
     t4Temp: [], t4Pressure: [],
     ambientTemp: [], evapAirTemp: loadFromStorage<number[]>("evapAirTemp", [])
   });
-  const [labels, setLabels] = useState<string[]>(() => loadFromStorage<string[]>("labels", []));
+  const [labels, setLabels] = useState<number[]>(() => loadFromStorage<number[]>("labels", []));
   const [setpointData, setSetpointData] = useState<number[]>(() => loadFromStorage<number[]>("setpointData", []));
   const [setpoint, setSetpoint] = useState<number>(() => Number(localStorage.getItem("currentSetpoint")) || 5.0);
   const [tempSetpointInput, setTempSetpointInput] = useState<number | "">(setpoint);
   const latestSetpointRef = useRef<number>(setpoint);
+  const [openGroup, setOpenGroup] = useState<string | null>("Compressor Outlet");
+
+  const groupConfig = [
+    {
+      name: "Compressor Outlet",
+      items: [
+        { title: "Temperature", value: sensors.t1Temp.slice(-1)[0], unit: "°C" },
+        { title: "Absolute Pressure", value: sensors.t1Pressure.slice(-1)[0], unit: "Pa" }
+      ]
+    },
+    {
+      name: "Condenser Outlet",
+      items: [
+        { title: "Temperature", value: sensors.t2Temp.slice(-1)[0], unit: "°C" },
+        { title: "Absolute Pressure", value: sensors.t2Pressure.slice(-1)[0], unit: "Pa" }
+      ]
+    },
+    {
+      name: "Expansion Device Outlet",
+      items: [
+        { title: "Temperature", value: sensors.t3Temp.slice(-1)[0], unit: "°C" },
+        { title: "Absolute Pressure", value: sensors.t3Pressure.slice(-1)[0], unit: "Pa" }
+      ]
+    },
+    {
+      name: "Evaporator Outlet",
+      items: [
+        { title: "Temperature", value: sensors.t4Temp.slice(-1)[0], unit: "°C" },
+        { title: "Absolute Pressure", value: sensors.t4Pressure.slice(-1)[0], unit: "Pa" }
+      ]
+    },
+    {
+      name: "Ambient",
+      items: [
+        { title: "Space Temperature", value: sensors.ambientTemp.slice(-1)[0], unit: "°C" },
+        { title: "Discharge Air Temperature", value: sensors.evapAirTemp.slice(-1)[0], unit: "°C" }
+      ]
+    }
+  ];
 
   const updateSetpointLine = (sp: number) => {
     setSetpointData(prev => {
@@ -43,27 +82,27 @@ export default function App() {
   };
 
   const handleMqttMessage = useCallback((topic: string, val: number) => {
-    const now = new Date().toLocaleTimeString();
+    const now = Date.now();
 
     setSensors(prev => {
       const next = { ...prev };
       switch(topic){
-        case "sensors/t1_temp": next.t1Temp = pushRolling(prev.t1Temp, val); break;
-        case "sensors/t1_pressure": next.t1Pressure = pushRolling(prev.t1Pressure, val); break;
-        case "sensors/t2_temp": next.t2Temp = pushRolling(prev.t2Temp, val); break;
-        case "sensors/t2_pressure": next.t2Pressure = pushRolling(prev.t2Pressure, val); break;
-        case "sensors/t3_temp": next.t3Temp = pushRolling(prev.t3Temp, val); break;
-        case "sensors/t3_pressure": next.t3Pressure = pushRolling(prev.t3Pressure, val); break;
-        case "sensors/t4_temp": next.t4Temp = pushRolling(prev.t4Temp, val); break;
-        case "sensors/t4_pressure": next.t4Pressure = pushRolling(prev.t4Pressure, val); break;
-        case "sensors/ambient_temp": next.ambientTemp = pushRolling(prev.ambientTemp, val); break;
-        case "sensors/evap_air_temp":
+        case "HighSide_Temperature": next.t1Temp = pushRolling(prev.t1Temp, val); break;
+        case "HighSide_AbsolutePressure": next.t1Pressure = pushRolling(prev.t1Pressure, val); break;
+        case "EXV_Temperature": next.t2Temp = pushRolling(prev.t2Temp, val); break;
+        case "EXV_AbsolutePressure": next.t2Pressure = pushRolling(prev.t2Pressure, val); break;
+        case "LowSide_Temperature": next.t3Temp = pushRolling(prev.t3Temp, val); break;
+        case "LowSide_AbsolutePressure": next.t3Pressure = pushRolling(prev.t3Pressure, val); break;
+        case "Evaporator_Temperature": next.t4Temp = pushRolling(prev.t4Temp, val); break;
+        case "Evaporator_AbsolutePressure": next.t4Pressure = pushRolling(prev.t4Pressure, val); break;
+        case "Space_Temperature": next.ambientTemp = pushRolling(prev.ambientTemp, val); break;
+        case "Discharge_Air_Temperature":
           next.evapAirTemp = pushRolling(prev.evapAirTemp, val);
-          setLabels(prev => { const nextLabels = pushRolling(prev.map(Number), Number(now)); saveToStorage("labels", nextLabels); return nextLabels.map(String); });
+          setLabels(prev => { const nextLabels = pushRolling(prev, now); saveToStorage("labels", nextLabels); return nextLabels; });
           setSetpointData(prev => { const spArr = pushRolling(prev, latestSetpointRef.current); saveToStorage("setpointData", spArr); return spArr; });
           saveToStorage("evapAirTemp", next.evapAirTemp);
           break;
-        case "control/setpoint":
+        case "Space_Setpoint_Temperature":
           setSetpoint(val); latestSetpointRef.current = val; setTempSetpointInput(val); localStorage.setItem("currentSetpoint", val.toString());
           break;
       }
@@ -85,7 +124,7 @@ export default function App() {
     updateSetpointLine(sp);
 
     if(clientRef.current?.connected){
-      clientRef.current.publish("control/setpoint", sp.toString(), { retain: true });
+      clientRef.current.publish("Space_Setpoint_Temperature", sp.toString(), { retain: true });
     }
   };
 
@@ -101,33 +140,27 @@ export default function App() {
 
         <main className="main-grid">
           <div className="left-col">
-            {["Compressor Outlet","Condenser Outlet","Expansion Device Outlet","Evaporator Outlet","Ambient"].map(group => (
-              <div key={group} className="accordion-group">
-                <div className="accordion-header">{group} Sensors</div>
-                <div className="accordion-body">
-                  {group==="Compressor Outlet" && <>
-                    <SensorCard title="Temp" value={formatVal(sensors.t1Temp.slice(-1)[0])} unit="°C"/>
-                    <SensorCard title="Pressure" value={formatVal(sensors.t1Pressure.slice(-1)[0])} unit="Pa"/>
-                  </>}
-                  {group==="Condenser Outlet" && <>
-                    <SensorCard title="Temp" value={formatVal(sensors.t2Temp.slice(-1)[0])} unit="°C"/>
-                    <SensorCard title="Pressure" value={formatVal(sensors.t2Pressure.slice(-1)[0])} unit="Pa"/>
-                  </>}
-                  {group==="Expansion Device Outlet" && <>
-                    <SensorCard title="Temp" value={formatVal(sensors.t3Temp.slice(-1)[0])} unit="°C"/>
-                    <SensorCard title="Pressure" value={formatVal(sensors.t3Pressure.slice(-1)[0])} unit="Pa"/>
-                  </>}
-                  {group==="Evaporator Outlet" && <>
-                    <SensorCard title="Temp" value={formatVal(sensors.t4Temp.slice(-1)[0])} unit="°C"/>
-                    <SensorCard title="Pressure" value={formatVal(sensors.t4Pressure.slice(-1)[0])} unit="Pa"/>
-                  </>}
-                  {group==="Ambient" && <>
-                    <SensorCard title="Ambient Temp" value={formatVal(sensors.ambientTemp.slice(-1)[0])} unit="°C"/>
-                    <SensorCard title="Evap Exit Air Temp" value={formatVal(sensors.evapAirTemp.slice(-1)[0])} unit="°C"/>
-                  </>}
+            {groupConfig.map((group, index) => {
+              const isOpen = openGroup === group.name;
+              const bodyId = `accordion-body-${index}`;
+              return (
+              <div key={group.name} className="accordion-group">
+                <button
+                  type="button"
+                  className="accordion-header"
+                  aria-expanded={isOpen}
+                  aria-controls={bodyId}
+                  onClick={() => setOpenGroup(prev => (prev === group.name ? null : group.name))}
+                >
+                  {group.name} Sensors
+                </button>
+                <div id={bodyId} className={`accordion-body ${isOpen ? "is-open" : "is-collapsed"}`}>
+                  {group.items.map(item => (
+                    <SensorCard key={item.title} title={item.title} value={formatVal(item.value)} unit={item.unit}/>
+                  ))}
                 </div>
               </div>
-            ))}
+            );})}
           </div>
 
           <div className="right-col">

@@ -1,5 +1,5 @@
 // src/utils/array_help.ts
-export const pushRolling = (prev: number[], newVal: number, maxPoints = 50): number[] =>
+export const pushRolling = <T,>(prev: T[], newVal: T, maxPoints = 50): T[] =>
   [...prev.slice(-maxPoints + 1), newVal];
 
 export const saveToStorage = (key: string, value: any) =>
