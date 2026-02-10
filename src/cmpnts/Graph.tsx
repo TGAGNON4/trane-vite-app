@@ -9,7 +9,8 @@ import {
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  type ChartOptions
 } from "chart.js";
 
 ChartJS.register(
@@ -38,10 +39,10 @@ export const Graph: React.FC<GraphProps> = ({ labels, evapAirTemp, setpointData 
     ]
   };
 
-  const options = {
+  const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: false,
+    animation: { duration: 0 },
     plugins:{legend:{display:true}},
     scales:{
       x: {
