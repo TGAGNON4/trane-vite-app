@@ -61,7 +61,6 @@ export const Graph: React.FC<GraphProps> = ({ labels, evapAirTemp, setpointData 
     maintainAspectRatio: false,
     animation: { duration: 250, easing: "linear" },
     normalized: true,
-    parsing: false,
     plugins:{
       legend:{display:true},
       decimation: {
