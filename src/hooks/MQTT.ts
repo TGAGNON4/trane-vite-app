@@ -27,7 +27,8 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
     client.on("connect", () => {
       console.log("MQTT connected");
 
-      const topics = [
+      const circuits = ["Circuit1", "Circuit2"];
+      const baseTopics = [
         "HighSide_Temperature", "HighSide_AbsolutePressure",
         "EXV_Temperature", "EXV_AbsolutePressure",
         "LowSide_Temperature", "LowSide_AbsolutePressure",
@@ -35,6 +36,9 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
         "Space_Temperature", "Discharge_Air_Temperature",
         "Space_Setpoint_Temperature"
       ];
+      const topics = circuits.flatMap(circuit =>
+        baseTopics.map(topic => `${circuit}/${topic}`)
+      );
 
       topics.forEach(t => {
         client.subscribe(t, { qos: 0 }, (err) => {
