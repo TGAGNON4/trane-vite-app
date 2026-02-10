@@ -54,11 +54,17 @@ export default function App() {
     Circuit1: setpoint.Circuit1,
     Circuit2: setpoint.Circuit2
   });
+  const isEditingSetpointRef = useRef<Record<CircuitKey, boolean>>({
+    Circuit1: false,
+    Circuit2: false
+  });
   const latestSetpointRef = useRef<Record<CircuitKey, number>>({
     Circuit1: setpoint.Circuit1,
     Circuit2: setpoint.Circuit2
   });
-  const [openGroup, setOpenGroup] = useState<string | null>("High Side");
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    () => new Set<string>(["High Side"])
+  );
 
   const currentSensors = sensors[activeCircuit];
   const groupConfig = [
@@ -145,7 +151,10 @@ export default function App() {
         case "Space_Setpoint_Temperature":
           setSetpoint(prevSet => ({ ...prevSet, [circuit]: val }));
           latestSetpointRef.current[circuit] = val;
-          setTempSetpointInput(prevInput => ({ ...prevInput, [circuit]: val }));
+          setTempSetpointInput(prevInput => {
+            if (isEditingSetpointRef.current[circuit]) return prevInput;
+            return { ...prevInput, [circuit]: val };
+          });
           localStorage.setItem(storageKey(circuit, "currentSetpoint"), val.toString());
           break;
       }
@@ -195,8 +204,24 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <div className="tab-row">
+              <button
+                type="button"
+                className="tab-btn"
+                onClick={() => setOpenGroups(new Set(groupConfig.map(g => g.name)))}
+              >
+                Open All
+              </button>
+              <button
+                type="button"
+                className="tab-btn"
+                onClick={() => setOpenGroups(new Set())}
+              >
+                Close All
+              </button>
+            </div>
             {groupConfig.map((group, index) => {
-              const isOpen = openGroup === group.name;
+              const isOpen = openGroups.has(group.name);
               const bodyId = `accordion-body-${index}`;
               return (
               <div key={group.name} className="accordion-group">
@@ -205,7 +230,14 @@ export default function App() {
                   className="accordion-header"
                   aria-expanded={isOpen}
                   aria-controls={bodyId}
-                  onClick={() => setOpenGroup(prev => (prev === group.name ? null : group.name))}
+                  onClick={() =>
+                    setOpenGroups(prev => {
+                      const next = new Set(prev);
+                      if (next.has(group.name)) next.delete(group.name);
+                      else next.add(group.name);
+                      return next;
+                    })
+                  }
                 >
                   {group.name} Sensors
                 </button>
@@ -228,6 +260,13 @@ export default function App() {
               <div className="control-row">
                 <input type="number" step="0.1" value={tempSetpointInput[activeCircuit] || ""} 
                   onChange={e=>setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))} 
+                  onFocus={() => { isEditingSetpointRef.current[activeCircuit] = true; }}
+                  onBlur={() => {
+                    isEditingSetpointRef.current[activeCircuit] = false;
+                    if (tempSetpointInput[activeCircuit] === "") {
+                      setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: setpoint[activeCircuit] }));
+                    }
+                  }}
                   onKeyDown={e=>{const v = tempSetpointInput[activeCircuit]; if(e.key==="Enter"&&v!=="")updateSetpoint(activeCircuit, v as number)}} 
                   className="number-input"/>
                 <button className="btn" onClick={()=>{const v = tempSetpointInput[activeCircuit]; if(v!=="")updateSetpoint(activeCircuit, v as number);}}>Update</button>

@@ -10,6 +10,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Decimation,
   type ChartOptions
 } from "chart.js";
 
@@ -20,7 +21,8 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Decimation
 );
 
 type GraphProps = {
@@ -34,16 +36,43 @@ export const Graph: React.FC<GraphProps> = ({ labels, evapAirTemp, setpointData 
   const data = {
     labels: formattedLabels,
     datasets: [
-      { label: "Evap Exit Air Temp", data: evapAirTemp, borderColor: "#60a5fa", backgroundColor: "#60a5fa33", tension: 0.2 },
-      { label: "Setpoint", data: setpointData, borderColor: "#facc15", borderDash:[10,5], pointRadius:0, fill:false }
+      {
+        label: "Evap Exit Air Temp",
+        data: evapAirTemp,
+        borderColor: "#60a5fa",
+        backgroundColor: "#60a5fa33",
+        tension: 0.35,
+        pointRadius: 0,
+        cubicInterpolationMode: "monotone"
+      },
+      {
+        label: "Setpoint",
+        data: setpointData,
+        borderColor: "#facc15",
+        borderDash: [10, 5],
+        pointRadius: 0,
+        fill: false
+      }
     ]
   };
 
   const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 0 },
-    plugins:{legend:{display:true}},
+    animation: { duration: 250, easing: "linear" },
+    normalized: true,
+    parsing: false,
+    plugins:{
+      legend:{display:true},
+      decimation: {
+        enabled: true,
+        algorithm: "lttb",
+        samples: 50
+      }
+    },
+    elements: {
+      point: { radius: 0, hitRadius: 6, hoverRadius: 4 }
+    },
     scales:{
       x: {
         title: { display: true, text: "Time" },
