@@ -39,6 +39,7 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
       const topics = circuits.flatMap(circuit =>
         baseTopics.map(topic => `${circuit}/${topic}`)
       );
+      topics.push("latency/probe");
 
       topics.forEach(t => {
         client.subscribe(t, { qos: 0 }, (err) => {
@@ -61,6 +62,21 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
     });
 
     client.on("message", (topic: string, payload: Buffer) => {
+      if (topic === "latency/probe") {
+        try {
+          const probe = JSON.parse(payload.toString()) as {
+            id?: string;
+            circuit?: string;
+          };
+          if (!probe.id || !probe.circuit) return;
+          const ack = JSON.stringify({ id: probe.id, circuit: probe.circuit });
+          client.publish("latency/ack", ack);
+        } catch (err) {
+          console.warn("Invalid latency probe payload", payload.toString());
+        }
+        return;
+      }
+
       const val = Number(payload.toString());
       if (Number.isFinite(val)) {
         console.log("Message received", topic, val);
