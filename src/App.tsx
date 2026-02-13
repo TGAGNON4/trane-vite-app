@@ -7,27 +7,27 @@ import { useMqtt } from "./hooks/MQTT";
 import { pushRolling, saveToStorage, loadFromStorage } from "./utils/array_help";
 
 type Sensors = {
-  t1Temp: number[];
-  t1Pressure: number[];
-  t2Temp: number[];
-  t2Pressure: number[];
-  t3Temp: number[];
-  t3Pressure: number[];
-  t4Temp: number[];
-  t4Pressure: number[];
-  ambientTemp: number[];
-  evapAirTemp: number[];
+  highTemp: number[];
+  highPressure: number[];
+  expTemp: number[];
+  expPressure: number[];
+  lowTemp: number[];
+  lowPressure: number[];
+  evapTemp: number[];
+  evapPressure: number[];
+  spaceTemp: number[];
+  dischargeTemp: number[];
 };
 
 const circuits = ["Circuit1", "Circuit2"] as const;
 type CircuitKey = typeof circuits[number];
 
 const makeEmptySensors = (): Sensors => ({
-  t1Temp: [], t1Pressure: [],
-  t2Temp: [], t2Pressure: [],
-  t3Temp: [], t3Pressure: [],
-  t4Temp: [], t4Pressure: [],
-  ambientTemp: [], evapAirTemp: []
+  highTemp: [], highPressure: [],
+  expTemp: [], expPressure: [],
+  lowTemp: [], lowPressure: [],
+  evapTemp: [], evapPressure: [],
+  spaceTemp: [], dischargeTemp: []
 });
 
 const storageKey = (circuit: CircuitKey, key: string) => `${circuit}:${key}`;
@@ -35,8 +35,8 @@ const storageKey = (circuit: CircuitKey, key: string) => `${circuit}:${key}`;
 export default function App() {
   const [activeCircuit, setActiveCircuit] = useState<CircuitKey>("Circuit1");
   const [sensors, setSensors] = useState<Record<CircuitKey, Sensors>>({
-    Circuit1: { ...makeEmptySensors(), evapAirTemp: loadFromStorage<number[]>(storageKey("Circuit1", "evapAirTemp"), []) },
-    Circuit2: { ...makeEmptySensors(), evapAirTemp: loadFromStorage<number[]>(storageKey("Circuit2", "evapAirTemp"), []) }
+    Circuit1: { ...makeEmptySensors(), dischargeTemp: loadFromStorage<number[]>(storageKey("Circuit1", "dischargeTemp"), []) },
+    Circuit2: { ...makeEmptySensors(), dischargeTemp: loadFromStorage<number[]>(storageKey("Circuit2", "dischargeTemp"), []) }
   });
   const [labels, setLabels] = useState<Record<CircuitKey, number[]>>({
     Circuit1: loadFromStorage<number[]>(storageKey("Circuit1", "labels"), []),
@@ -71,36 +71,36 @@ export default function App() {
     {
       name: "High Side",
       items: [
-        { title: "Temperature", value: currentSensors.t1Temp.slice(-1)[0], unit: "°C" },
-        { title: "Absolute Pressure", value: currentSensors.t1Pressure.slice(-1)[0], unit: "Pa" }
+        { title: "Temperature", value: currentSensors.highTemp.slice(-1)[0], unit: "°C" },
+        { title: "Absolute Pressure", value: currentSensors.highPressure.slice(-1)[0], unit: "Pa" }
       ]
     },
     {
       name: "Expansion Valve",
       items: [
-        { title: "Temperature", value: currentSensors.t2Temp.slice(-1)[0], unit: "°C" },
-        { title: "Absolute Pressure", value: currentSensors.t2Pressure.slice(-1)[0], unit: "Pa" }
+        { title: "Temperature", value: currentSensors.expTemp.slice(-1)[0], unit: "°C" },
+        { title: "Absolute Pressure", value: currentSensors.expPressure.slice(-1)[0], unit: "Pa" }
       ]
     },
     {
       name: "Low Side",
       items: [
-        { title: "Temperature", value: currentSensors.t3Temp.slice(-1)[0], unit: "°C" },
-        { title: "Absolute Pressure", value: currentSensors.t3Pressure.slice(-1)[0], unit: "Pa" }
+        { title: "Temperature", value: currentSensors.lowTemp.slice(-1)[0], unit: "°C" },
+        { title: "Absolute Pressure", value: currentSensors.lowPressure.slice(-1)[0], unit: "Pa" }
       ]
     },
     {
       name: "Evaporator",
       items: [
-        { title: "Temperature", value: currentSensors.t4Temp.slice(-1)[0], unit: "°C" },
-        { title: "Absolute Pressure", value: currentSensors.t4Pressure.slice(-1)[0], unit: "Pa" }
+        { title: "Temperature", value: currentSensors.evapTemp.slice(-1)[0], unit: "°C" },
+        { title: "Absolute Pressure", value: currentSensors.evapPressure.slice(-1)[0], unit: "Pa" }
       ]
     },
     {
       name: "Other",
       items: [
-        { title: "Space Temperature", value: currentSensors.ambientTemp.slice(-1)[0], unit: "°C" },
-        { title: "Discharge Air Temperature", value: currentSensors.evapAirTemp.slice(-1)[0], unit: "°C" }
+        { title: "Space Temperature", value: currentSensors.spaceTemp.slice(-1)[0], unit: "°C" },
+        { title: "Discharge Air Temperature", value: currentSensors.dischargeTemp.slice(-1)[0], unit: "°C" }
       ]
     }
   ];
@@ -125,17 +125,17 @@ export default function App() {
       const next = { ...prev, [circuit]: { ...prev[circuit] } };
       const c = next[circuit];
       switch(topicPart){
-        case "HighSide_Temperature": c.t1Temp = pushRolling(c.t1Temp, val); break;
-        case "HighSide_AbsolutePressure": c.t1Pressure = pushRolling(c.t1Pressure, val); break;
-        case "EXV_Temperature": c.t2Temp = pushRolling(c.t2Temp, val); break;
-        case "EXV_AbsolutePressure": c.t2Pressure = pushRolling(c.t2Pressure, val); break;
-        case "LowSide_Temperature": c.t3Temp = pushRolling(c.t3Temp, val); break;
-        case "LowSide_AbsolutePressure": c.t3Pressure = pushRolling(c.t3Pressure, val); break;
-        case "Evaporator_Temperature": c.t4Temp = pushRolling(c.t4Temp, val); break;
-        case "Evaporator_AbsolutePressure": c.t4Pressure = pushRolling(c.t4Pressure, val); break;
-        case "Space_Temperature": c.ambientTemp = pushRolling(c.ambientTemp, val); break;
+        case "HighSide_Temperature": c.highTemp = pushRolling(c.highTemp, val); break;
+        case "HighSide_AbsolutePressure": c.highPressure = pushRolling(c.highPressure, val); break;
+        case "EXV_Temperature": c.expTemp = pushRolling(c.expTemp, val); break;
+        case "EXV_AbsolutePressure": c.expPressure = pushRolling(c.expPressure, val); break;
+        case "LowSide_Temperature": c.lowTemp = pushRolling(c.lowTemp, val); break;
+        case "LowSide_AbsolutePressure": c.lowPressure = pushRolling(c.lowPressure, val); break;
+        case "Evaporator_Temperature": c.evapTemp = pushRolling(c.evapTemp, val); break;
+        case "Evaporator_AbsolutePressure": c.evapPressure = pushRolling(c.evapPressure, val); break;
+        case "Space_Temperature": c.spaceTemp = pushRolling(c.spaceTemp, val); break;
         case "Discharge_Air_Temperature":
-          c.evapAirTemp = pushRolling(c.evapAirTemp, val);
+          c.dischargeTemp = pushRolling(c.dischargeTemp, val);
           setLabels(prevLabels => {
             const nextLabels = pushRolling(prevLabels[circuit], now);
             saveToStorage(storageKey(circuit, "labels"), nextLabels);
@@ -146,7 +146,7 @@ export default function App() {
             saveToStorage(storageKey(circuit, "setpointData"), spArr);
             return { ...prevData, [circuit]: spArr };
           });
-          saveToStorage(storageKey(circuit, "evapAirTemp"), c.evapAirTemp);
+          saveToStorage(storageKey(circuit, "dischargeTemp"), c.dischargeTemp);
           break;
         case "Space_Setpoint_Temperature":
           setSetpoint(prevSet => ({ ...prevSet, [circuit]: val }));
@@ -252,7 +252,7 @@ export default function App() {
 
           <div className="right-col">
             <div className="card graph-card">
-              <Graph labels={labels[activeCircuit]} evapAirTemp={currentSensors.evapAirTemp} setpointData={setpointData[activeCircuit]}/>
+              <Graph labels={labels[activeCircuit]} dischargeTemp={currentSensors.dischargeTemp} setpointData={setpointData[activeCircuit]}/>
             </div>
 
             <div className="card setpoint-card">
