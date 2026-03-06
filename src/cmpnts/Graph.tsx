@@ -27,18 +27,18 @@ ChartJS.register(
 
 type GraphProps = {
   labels: number[];
-  evapAirTemp: number[];
+  dischargeTemp: number[];
   setpointData: number[];
 };
 
-export const Graph: React.FC<GraphProps> = ({ labels, evapAirTemp, setpointData }) => {
+export const Graph: React.FC<GraphProps> = ({ labels, dischargeTemp, setpointData }) => {
   const formattedLabels = labels.map(ts => new Date(ts).toLocaleTimeString());
   const data = {
     labels: formattedLabels,
     datasets: [
       {
-        label: "Evap Exit Air Temp",
-        data: evapAirTemp,
+        label: "Discharge Air Temp",
+        data: dischargeTemp,
         borderColor: "#60a5fa",
         backgroundColor: "#60a5fa33",
         tension: 0.35,

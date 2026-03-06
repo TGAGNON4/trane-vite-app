@@ -33,7 +33,7 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
         "EXV_Temperature", "EXV_AbsolutePressure",
         "LowSide_Temperature", "LowSide_AbsolutePressure",
         "Evaporator_Temperature", "Evaporator_AbsolutePressure",
-        "Space_Temperature", "Discharge_Air_Temperature",
+        "Space_Temperature", "Sample_Timestamp", "Discharge_Air_Temperature",
         "Space_Setpoint_Temperature"
       ];
       const topics = circuits.flatMap(circuit =>

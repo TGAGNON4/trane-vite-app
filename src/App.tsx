@@ -62,6 +62,10 @@ export default function App() {
     Circuit1: setpoint.Circuit1,
     Circuit2: setpoint.Circuit2
   });
+  const latestSampleTimestampRef = useRef<Record<CircuitKey, number>>({
+    Circuit1: Date.now(),
+    Circuit2: Date.now()
+  });
   const [openGroups, setOpenGroups] = useState<Set<string>>(
     () => new Set<string>(["High Side"])
   );
@@ -116,7 +120,6 @@ export default function App() {
   };
 
   const handleMqttMessage = useCallback((topic: string, val: number) => {
-    const now = Date.now();
     const [circuitPart, topicPart] = topic.split("/", 2);
     if (!circuits.includes(circuitPart as CircuitKey) || !topicPart) return;
     const circuit = circuitPart as CircuitKey;
@@ -134,10 +137,14 @@ export default function App() {
         case "Evaporator_Temperature": c.evapTemp = pushRolling(c.evapTemp, val); break;
         case "Evaporator_AbsolutePressure": c.evapPressure = pushRolling(c.evapPressure, val); break;
         case "Space_Temperature": c.spaceTemp = pushRolling(c.spaceTemp, val); break;
+        case "Sample_Timestamp":
+          latestSampleTimestampRef.current[circuit] = val;
+          break;
         case "Discharge_Air_Temperature":
           c.dischargeTemp = pushRolling(c.dischargeTemp, val);
           setLabels(prevLabels => {
-            const nextLabels = pushRolling(prevLabels[circuit], now);
+            const sampleTs = Number.isFinite(latestSampleTimestampRef.current[circuit]) ? latestSampleTimestampRef.current[circuit] : Date.now();
+            const nextLabels = pushRolling(prevLabels[circuit], sampleTs);
             saveToStorage(storageKey(circuit, "labels"), nextLabels);
             return { ...prevLabels, [circuit]: nextLabels };
           });
