@@ -54,9 +54,8 @@ export default function App() {
   const [timeRange, setTimeRange] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [timeInput, setTimeInput] = useState<string>("");
-  const [selectTimeStatus, setSelectTimeStatus] = useState<string>("");
-  const [downloadStatus, setDownloadStatus] = useState<string>("");
-  const [datesStatus, setDatesStatus] = useState<string>("");
+  const [rangeStart, setRangeStart] = useState<string>("");
+  const [rangeEnd, setRangeEnd] = useState<string>("");
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: setpoint.Circuit1,
     Circuit2: setpoint.Circuit2
@@ -181,10 +180,8 @@ export default function App() {
       const dates = payload.split(",").map(p => p.trim()).filter(Boolean);
       setAvailableDates(dates);
       if (!dates.length) {
-        setDatesStatus("no dates");
         return;
       }
-      setDatesStatus("");
       if (!selectedDate) {
         setSelectedDate(dates[0]);
         requestTimeRange(dates[0]);
@@ -210,9 +207,6 @@ export default function App() {
       URL.revokeObjectURL(url);
       setDownloadStatus("downloaded");
       return;
-    }
-    if (topic === "Data/Select_Time_Status") {
-      setSelectTimeStatus(payload || "");
     }
   }, [selectedDate]);
 
@@ -253,17 +247,54 @@ export default function App() {
   const requestDownload = () => {
     if (clientRef.current?.connected) {
       clientRef.current.publish("Data/Download_Request", selectedDate);
-      setDownloadStatus("requested");
     }
+  };
+
+  const clearGraph = (circuit: CircuitKey) => {
+    setSensors(prev => {
+      const next = { ...prev, [circuit]: { ...prev[circuit] } };
+      next[circuit].dischargeTemp = [];
+      saveToStorage(storageKey(circuit, "dischargeTemp"), []);
+      return next;
+    });
+    setLabels(prev => {
+      const next = { ...prev, [circuit]: [] };
+      saveToStorage(storageKey(circuit, "labels"), []);
+      return next;
+    });
+    setSetpointData(prev => {
+      const next = { ...prev, [circuit]: [] };
+      saveToStorage(storageKey(circuit, "setpointData"), []);
+      return next;
+    });
   };
 
   const requestTime = () => {
     if (!timeInput) return;
     const payload = selectedDate ? `${selectedDate} ${timeInput}` : timeInput;
     if (clientRef.current?.connected) {
+      clearGraph(activeCircuit);
       clientRef.current.publish("Data/Select_Time_Request", payload);
-      setSelectTimeStatus("requested");
     }
+  };
+
+  const requestRange = () => {
+    if (!rangeStart || !rangeEnd) return;
+    const payload = selectedDate ? `${selectedDate} ${rangeStart} ${rangeEnd}` : `${rangeStart} ${rangeEnd}`;
+    if (clientRef.current?.connected) {
+      clearGraph(activeCircuit);
+      clientRef.current.publish("Data/Select_Range_Request", payload);
+    }
+  };
+
+  const showLive = () => {
+    clearGraph(activeCircuit);
+  };
+
+  const formatDate = (dateStr: string) => {
+    const parts = dateStr.split("-");
+    if (parts.length !== 3) return dateStr;
+    return `${parts[1]}/${parts[0]}/${parts[2]}`;
   };
 
   return (
@@ -373,12 +404,10 @@ export default function App() {
                 >
                   <option value="">today</option>
                   {availableDates.map(d => (
-                    <option key={d} value={d}>{d}</option>
+                    <option key={d} value={d}>{formatDate(d)}</option>
                   ))}
                 </select>
               </div>
-              {datesStatus && <div style={{ marginTop: "0.5rem" }}>{datesStatus}</div>}
-              {timeRange && <div style={{ marginTop: "0.5rem" }}>Time range: {timeRange}</div>}
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <input
                   className="number-input"
@@ -388,11 +417,28 @@ export default function App() {
                 />
                 <button className="btn" onClick={requestTime}>Show time</button>
               </div>
+              {timeRange && <div className="control-row" style={{ marginTop: "0.5rem" }}>{timeRange}</div>}
+              <div className="control-row" style={{ marginTop: "0.5rem" }}>
+                <input
+                  className="number-input"
+                  placeholder="Start HH:MM:SS"
+                  value={rangeStart}
+                  onChange={e => setRangeStart(e.target.value)}
+                />
+                <input
+                  className="number-input"
+                  placeholder="End HH:MM:SS"
+                  value={rangeEnd}
+                  onChange={e => setRangeEnd(e.target.value)}
+                />
+                <button className="btn" onClick={requestRange}>Show range</button>
+              </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={requestDownload}>Download file</button>
-                <div>{downloadStatus}</div>
               </div>
-              {selectTimeStatus && <div style={{ marginTop: "0.5rem" }}>{selectTimeStatus}</div>}
+              <div className="control-row" style={{ marginTop: "0.5rem" }}>
+                <button className="btn" onClick={showLive}>Live data</button>
+              </div>
             </div>
           </div>
         </main>

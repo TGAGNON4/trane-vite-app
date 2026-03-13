@@ -47,6 +47,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
       topics.push("Data/Available_Time_Ranges");
       topics.push("Data/Download");
       topics.push("Data/Select_Time_Status");
+      topics.push("Data/Select_Range_Status");
 
       topics.forEach(t => {
         client.subscribe(t, { qos: 0 }, (err) => {
