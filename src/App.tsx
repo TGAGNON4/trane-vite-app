@@ -306,15 +306,9 @@ export default function App() {
           <h1>Refrigeration Dashboard</h1>
           <div>MQTT sensor data</div>
           <div className="menu-bar">
-            {circuits.map(circuit => (
-              <a
-                key={circuit}
-                className={`menu-link ${activeCircuit === circuit ? "is-active" : ""}`}
-                href={`#/${circuit}`}
-              >
-                {circuit === "Circuit1" ? "Circuit 1" : "Circuit 2"}
-              </a>
-            ))}
+            <span className="menu-label">
+              {activeCircuit === "Circuit1" ? "Circuit 1" : "Circuit 2"}
+            </span>
           </div>
         </header>
 

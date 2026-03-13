@@ -35,18 +35,9 @@ body,html,#root {
   gap:0.75rem;
   margin-top:0.5rem;
 }
-.menu-link {
-  text-decoration:none;
-  color:var(--text);
-  padding:0.25rem 0.5rem;
-  border-radius:0.25rem;
-  border:1px solid #1f2937;
-  background:#0b1220;
-}
-.menu-link.is-active {
-  background:var(--accent);
-  color:#000;
-  border-color:var(--accent);
+.menu-label {
+  font-weight:600;
+  letter-spacing:0.2px;
 }
 
 .main-grid {
