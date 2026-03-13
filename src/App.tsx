@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import "./App.css";
 import { SensorCard } from "./cmpnts/SensorCard";
 import { Graph } from "./cmpnts/Graph";
@@ -53,7 +53,6 @@ export default function App() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [timeRange, setTimeRange] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
-  const [timeInput, setTimeInput] = useState<string>("");
   const [rangeStart, setRangeStart] = useState<string>("");
   const [rangeEnd, setRangeEnd] = useState<string>("");
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
@@ -77,6 +76,18 @@ export default function App() {
   );
 
   const currentSensors = sensors[activeCircuit];
+
+  useEffect(() => {
+    const pickCircuit = () => {
+      const hash = window.location.hash.replace("#/", "").replace("#", "");
+      if (hash === "Circuit2" || hash === "circuit2") return "Circuit2";
+      return "Circuit1";
+    };
+    const apply = () => setActiveCircuit(pickCircuit());
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
   const groupConfig = [
     {
       name: "High Side",
@@ -194,7 +205,7 @@ export default function App() {
     }
     if (topic === "Data/Download") {
       if (!payload) return;
-      const dateStr = selectedDate || new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
+      const dateStr = selectedDate || availableDates[0] || new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
       const blob = new Blob([payload], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -223,6 +234,7 @@ export default function App() {
 
     if(clientRef.current?.connected){
       clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, sp.toString(), { retain: true });
+      clientRef.current.publish("Data/Setpoint_Record", `${circuit} ${sp}`);
     }
   };
 
@@ -241,8 +253,9 @@ export default function App() {
   };
 
   const requestDownload = () => {
+    const dateStr = selectedDate || availableDates[0] || "";
     if (clientRef.current?.connected) {
-      clientRef.current.publish("Data/Download_Request", selectedDate);
+      clientRef.current.publish("Data/Download_Request", dateStr);
     }
   };
 
@@ -265,18 +278,11 @@ export default function App() {
     });
   };
 
-  const requestTime = () => {
-    if (!timeInput) return;
-    const payload = selectedDate ? `${selectedDate} ${timeInput}` : timeInput;
-    if (clientRef.current?.connected) {
-      clearGraph(activeCircuit);
-      clientRef.current.publish("Data/Select_Time_Request", payload);
-    }
-  };
-
   const requestRange = () => {
     if (!rangeStart || !rangeEnd) return;
-    const payload = selectedDate ? `${selectedDate} ${rangeStart} ${rangeEnd}` : `${rangeStart} ${rangeEnd}`;
+    const payload = selectedDate
+      ? `${activeCircuit} ${selectedDate} ${rangeStart} ${rangeEnd}`
+      : `${activeCircuit} ${rangeStart} ${rangeEnd}`;
     if (clientRef.current?.connected) {
       clearGraph(activeCircuit);
       clientRef.current.publish("Data/Select_Range_Request", payload);
@@ -305,14 +311,13 @@ export default function App() {
           <div className="left-col">
             <div className="tab-row">
               {circuits.map(circuit => (
-                <button
+                <a
                   key={circuit}
-                  type="button"
                   className={`tab-btn ${activeCircuit === circuit ? "is-active" : ""}`}
-                  onClick={() => setActiveCircuit(circuit)}
+                  href={`#/${circuit}`}
                 >
                   {circuit === "Circuit1" ? "Circuit 1" : "Circuit 2"}
-                </button>
+                </a>
               ))}
             </div>
             <div className="tab-row">
@@ -403,15 +408,6 @@ export default function App() {
                     <option key={d} value={d}>{formatDate(d)}</option>
                   ))}
                 </select>
-              </div>
-              <div className="control-row" style={{ marginTop: "0.5rem" }}>
-                <input
-                  className="number-input"
-                  placeholder="HH:MM:SS"
-                  value={timeInput}
-                  onChange={e => setTimeInput(e.target.value)}
-                />
-                <button className="btn" onClick={requestTime}>Show time</button>
               </div>
               {timeRange && <div className="control-row" style={{ marginTop: "0.5rem" }}>{timeRange}</div>}
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
