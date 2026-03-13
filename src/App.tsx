@@ -193,10 +193,7 @@ export default function App() {
       return;
     }
     if (topic === "Data/Download") {
-      if (!payload) {
-        setDownloadStatus("no data");
-        return;
-      }
+      if (!payload) return;
       const dateStr = selectedDate || new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
       const blob = new Blob([payload], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
@@ -205,7 +202,6 @@ export default function App() {
       link.download = `temps_${dateStr}.txt`;
       link.click();
       URL.revokeObjectURL(url);
-      setDownloadStatus("downloaded");
       return;
     }
   }, [selectedDate]);
