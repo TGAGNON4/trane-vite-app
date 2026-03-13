@@ -42,6 +42,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage }: U
       );
       topics.push("latency/probe");
       topics.push("Data/Available_Dates");
+      topics.push("Data/Available_Time_Ranges");
       topics.push("Data/Download");
       topics.push("Data/Select_Time_Status");
 

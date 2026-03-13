@@ -51,6 +51,7 @@ export default function App() {
     Circuit2: Number(localStorage.getItem(storageKey("Circuit2", "currentSetpoint"))) || 5.0
   });
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [timeRange, setTimeRange] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [timeInput, setTimeInput] = useState<string>("");
   const [selectTimeStatus, setSelectTimeStatus] = useState<string>("");
@@ -181,6 +182,10 @@ export default function App() {
       if (!selectedDate && dates.length) setSelectedDate(dates[0]);
       return;
     }
+    if (topic === "Data/Available_Time_Ranges") {
+      setTimeRange(payload || "");
+      return;
+    }
     if (topic === "Data/Download") {
       if (!payload) {
         setDownloadStatus("no data");
@@ -226,6 +231,12 @@ export default function App() {
   const requestDates = () => {
     if (clientRef.current?.connected) {
       clientRef.current.publish("Data/Available_Dates_Request", "");
+    }
+  };
+
+  const requestTimeRange = (dateStr: string) => {
+    if (clientRef.current?.connected) {
+      clientRef.current.publish("Data/Available_Time_Ranges_Request", dateStr);
     }
   };
 
@@ -340,13 +351,23 @@ export default function App() {
               <div>Data</div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={requestDates}>Get dates</button>
-                <select className="number-input" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}>
+                <select
+                  className="number-input"
+                  value={selectedDate}
+                  onChange={e => {
+                    const next = e.target.value;
+                    setSelectedDate(next);
+                    setTimeRange("");
+                    requestTimeRange(next);
+                  }}
+                >
                   <option value="">today</option>
                   {availableDates.map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
               </div>
+              {timeRange && <div style={{ marginTop: "0.5rem" }}>Time range: {timeRange}</div>}
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <input
                   className="number-input"
