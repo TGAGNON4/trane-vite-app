@@ -7,9 +7,10 @@ type UseMqttProps = {
   username: string;
   password: string;
   onMessage: (topic: string, payload: number) => void;
+  onTextMessage?: (topic: string, payload: string) => void;
 };
 
-export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) => {
+export const useMqtt = ({ url, username, password, onMessage, onTextMessage }: UseMqttProps) => {
   const clientRef = useRef<MqttClient | null>(null);
 
   useEffect(() => {
@@ -40,6 +41,9 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
         baseTopics.map(topic => `${circuit}/${topic}`)
       );
       topics.push("latency/probe");
+      topics.push("Data/Available_Dates");
+      topics.push("Data/Download");
+      topics.push("Data/Select_Time_Status");
 
       topics.forEach(t => {
         client.subscribe(t, { qos: 0 }, (err) => {
@@ -62,6 +66,10 @@ export const useMqtt = ({ url, username, password, onMessage }: UseMqttProps) =>
     });
 
     client.on("message", (topic: string, payload: Buffer) => {
+      if (topic.startsWith("Data/")) {
+        onTextMessage?.(topic, payload.toString());
+        return;
+      }
       if (topic === "latency/probe") {
         try {
           const probe = JSON.parse(payload.toString()) as {

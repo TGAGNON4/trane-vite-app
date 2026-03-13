@@ -50,6 +50,11 @@ export default function App() {
     Circuit1: Number(localStorage.getItem(storageKey("Circuit1", "currentSetpoint"))) || 5.0,
     Circuit2: Number(localStorage.getItem(storageKey("Circuit2", "currentSetpoint"))) || 5.0
   });
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [timeInput, setTimeInput] = useState<string>("");
+  const [selectTimeStatus, setSelectTimeStatus] = useState<string>("");
+  const [downloadStatus, setDownloadStatus] = useState<string>("");
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: setpoint.Circuit1,
     Circuit2: setpoint.Circuit2
@@ -169,11 +174,40 @@ export default function App() {
     });
   }, []);
 
+  const handleTextMessage = useCallback((topic: string, payload: string) => {
+    if (topic === "Data/Available_Dates") {
+      const dates = payload.split(",").map(p => p.trim()).filter(Boolean);
+      setAvailableDates(dates);
+      if (!selectedDate && dates.length) setSelectedDate(dates[0]);
+      return;
+    }
+    if (topic === "Data/Download") {
+      if (!payload) {
+        setDownloadStatus("no data");
+        return;
+      }
+      const dateStr = selectedDate || new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
+      const blob = new Blob([payload], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `temps_${dateStr}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setDownloadStatus("downloaded");
+      return;
+    }
+    if (topic === "Data/Select_Time_Status") {
+      setSelectTimeStatus(payload || "");
+    }
+  }, [selectedDate]);
+
   const clientRef = useMqtt({
     url: "wss://seniordesignmqtt.duckdns.org:8083",
     username: "dev",
     password: "trAneEseNdeS_4321",
-    onMessage: handleMqttMessage
+    onMessage: handleMqttMessage,
+    onTextMessage: handleTextMessage
   });
 
   const updateSetpoint = (circuit: CircuitKey, sp: number) => {
@@ -188,6 +222,28 @@ export default function App() {
   };
 
   const formatVal = (v: number | undefined) => Number.isFinite(v!) ? v!.toFixed(1) : "—";
+
+  const requestDates = () => {
+    if (clientRef.current?.connected) {
+      clientRef.current.publish("Data/Available_Dates_Request", "");
+    }
+  };
+
+  const requestDownload = () => {
+    if (clientRef.current?.connected) {
+      clientRef.current.publish("Data/Download_Request", selectedDate);
+      setDownloadStatus("requested");
+    }
+  };
+
+  const requestTime = () => {
+    if (!timeInput) return;
+    const payload = selectedDate ? `${selectedDate} ${timeInput}` : timeInput;
+    if (clientRef.current?.connected) {
+      clientRef.current.publish("Data/Select_Time_Request", payload);
+      setSelectTimeStatus("requested");
+    }
+  };
 
   return (
     <div className="app-root">
@@ -278,6 +334,33 @@ export default function App() {
                   className="number-input"/>
                 <button className="btn" onClick={()=>{const v = tempSetpointInput[activeCircuit]; if(v!=="")updateSetpoint(activeCircuit, v as number);}}>Update</button>
               </div>
+            </div>
+
+            <div className="card">
+              <div>Data</div>
+              <div className="control-row" style={{ marginTop: "0.5rem" }}>
+                <button className="btn" onClick={requestDates}>Get dates</button>
+                <select className="number-input" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}>
+                  <option value="">today</option>
+                  {availableDates.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="control-row" style={{ marginTop: "0.5rem" }}>
+                <input
+                  className="number-input"
+                  placeholder="HH:MM:SS"
+                  value={timeInput}
+                  onChange={e => setTimeInput(e.target.value)}
+                />
+                <button className="btn" onClick={requestTime}>Show time</button>
+              </div>
+              <div className="control-row" style={{ marginTop: "0.5rem" }}>
+                <button className="btn" onClick={requestDownload}>Download file</button>
+                <div>{downloadStatus}</div>
+              </div>
+              {selectTimeStatus && <div style={{ marginTop: "0.5rem" }}>{selectTimeStatus}</div>}
             </div>
           </div>
         </main>
