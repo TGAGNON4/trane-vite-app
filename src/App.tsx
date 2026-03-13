@@ -188,14 +188,24 @@ export default function App() {
 
   const handleTextMessage = useCallback((topic: string, payload: string) => {
     if (topic === "Data/Available_Dates") {
-      const dates = payload.split(",").map(p => p.trim()).filter(Boolean);
+      const dates = payload
+        .split(",")
+        .map(p => p.trim())
+        .filter(Boolean)
+        .sort((a, b) => {
+          const pa = a.split("-").reverse().join("");
+          const pb = b.split("-").reverse().join("");
+          return pb.localeCompare(pa);
+        });
       setAvailableDates(dates);
       if (!dates.length) {
         return;
       }
       if (!selectedDate) {
-        setSelectedDate(dates[0]);
-        requestTimeRange(dates[0]);
+        const today = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
+        const next = dates.includes(today) ? today : dates[0];
+        setSelectedDate(next);
+        requestTimeRange(next);
       }
       return;
     }
