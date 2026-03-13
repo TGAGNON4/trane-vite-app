@@ -56,6 +56,7 @@ export default function App() {
   const [timeInput, setTimeInput] = useState<string>("");
   const [selectTimeStatus, setSelectTimeStatus] = useState<string>("");
   const [downloadStatus, setDownloadStatus] = useState<string>("");
+  const [datesStatus, setDatesStatus] = useState<string>("");
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: setpoint.Circuit1,
     Circuit2: setpoint.Circuit2
@@ -179,7 +180,15 @@ export default function App() {
     if (topic === "Data/Available_Dates") {
       const dates = payload.split(",").map(p => p.trim()).filter(Boolean);
       setAvailableDates(dates);
-      if (!selectedDate && dates.length) setSelectedDate(dates[0]);
+      if (!dates.length) {
+        setDatesStatus("no dates");
+        return;
+      }
+      setDatesStatus("");
+      if (!selectedDate) {
+        setSelectedDate(dates[0]);
+        requestTimeRange(dates[0]);
+      }
       return;
     }
     if (topic === "Data/Available_Time_Ranges") {
@@ -212,7 +221,8 @@ export default function App() {
     username: "dev",
     password: "trAneEseNdeS_4321",
     onMessage: handleMqttMessage,
-    onTextMessage: handleTextMessage
+    onTextMessage: handleTextMessage,
+    onConnect: () => requestDates()
   });
 
   const updateSetpoint = (circuit: CircuitKey, sp: number) => {
@@ -367,6 +377,7 @@ export default function App() {
                   ))}
                 </select>
               </div>
+              {datesStatus && <div style={{ marginTop: "0.5rem" }}>{datesStatus}</div>}
               {timeRange && <div style={{ marginTop: "0.5rem" }}>Time range: {timeRange}</div>}
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <input

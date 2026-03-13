@@ -8,9 +8,10 @@ type UseMqttProps = {
   password: string;
   onMessage: (topic: string, payload: number) => void;
   onTextMessage?: (topic: string, payload: string) => void;
+  onConnect?: (client: MqttClient) => void;
 };
 
-export const useMqtt = ({ url, username, password, onMessage, onTextMessage }: UseMqttProps) => {
+export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onConnect }: UseMqttProps) => {
   const clientRef = useRef<MqttClient | null>(null);
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage }: U
 
     client.on("connect", () => {
       console.log("MQTT connected");
+      onConnect?.(client);
 
       const circuits = ["Circuit1", "Circuit2"];
       const baseTopics = [
