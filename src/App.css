@@ -1,4 +1,5 @@
 :root {
+  /* App colors */
   --bg:#071029;
   --card:#0f1724;
   --accent:#facc15;
@@ -6,6 +7,7 @@
   --text:#e5e7eb;
 }
 
+/* Page base */
 body,html,#root {
   margin:0;
   padding:0;
@@ -15,6 +17,7 @@ body,html,#root {
   font-family:sans-serif;
 }
 
+/* Layout */
 .app-root {
   display:flex;
   flex-direction:column;
@@ -61,7 +64,7 @@ body,html,#root {
   gap: 1rem;
 }
 
-
+/* Cards and controls */
 .card {
   background-color:var(--card);
   padding:1rem;
@@ -101,7 +104,7 @@ body,html,#root {
   align-items:center;
 }
 
-/* Accordion styling */
+/* Accordion */
 .accordion-group {
   border:1px solid #1f2937;
   border-radius:0.5rem;
@@ -135,6 +138,7 @@ body,html,#root {
   pointer-events:none;
 }
 
+/* Small tab buttons */
 .tab-row {
   display:flex;
   gap:0.5rem;

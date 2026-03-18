@@ -7,6 +7,7 @@ type SensorCardProps = {
   unit: string;
 };
 
+// Simple sensor display block.
 export const SensorCard: React.FC<SensorCardProps> = ({ title, value, unit }) => (
   <div className="card">
     <div className="card-title">{title}</div>

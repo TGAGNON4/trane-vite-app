@@ -14,6 +14,7 @@ import {
   type ChartOptions
 } from "chart.js";
 
+// Register chart modules once for the app.
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -32,6 +33,7 @@ type GraphProps = {
 };
 
 export const Graph: React.FC<GraphProps> = ({ labels, dischargeTemp, setpointData }) => {
+  // Labels are epoch ms, show as local time.
   const formattedLabels = labels.map(ts => new Date(ts).toLocaleTimeString());
   const data = {
     labels: formattedLabels,
@@ -56,6 +58,7 @@ export const Graph: React.FC<GraphProps> = ({ labels, dischargeTemp, setpointDat
     ]
   };
 
+  // Keep the chart smooth and light for live updates.
   const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,

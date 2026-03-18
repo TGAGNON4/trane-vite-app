@@ -6,6 +6,10 @@ import { Graph } from "./cmpnts/Graph";
 import { useMqtt } from "./hooks/MQTT";
 import { pushRolling, saveToStorage, loadFromStorage } from "./utils/array_help";
 
+// -----------------
+// Types and helpers
+// -----------------
+
 type Sensors = {
   highTemp: number[];
   highPressure: number[];
@@ -32,7 +36,35 @@ const makeEmptySensors = (): Sensors => ({
 
 const storageKey = (circuit: CircuitKey, key: string) => `${circuit}:${key}`;
 
+const todayStr = () => new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
+
+const formatDate = (dateStr: string) => {
+  const parts = dateStr.split("-");
+  if (parts.length !== 3) return dateStr;
+  return `${parts[1]}/${parts[0]}/${parts[2]}`;
+};
+
+const sortDatesNewest = (dates: string[]) => {
+  return dates.sort((a, b) => {
+    const pa = a.split("-").reverse().join("");
+    const pb = b.split("-").reverse().join("");
+    return pb.localeCompare(pa);
+  });
+};
+
+const pickCircuitFromHash = () => {
+  const hash = window.location.hash.replace("#/", "").replace("#", "");
+  if (hash === "Circuit2" || hash === "circuit2") return "Circuit2" as const;
+  return "Circuit1" as const;
+};
+
+const toMetricTemp = (f: number) => (f - 32) * 5 / 9;
+const toMetricPressure = (psi: number) => psi * 6894.757;
+
 export default function App() {
+  // -----------------
+  // State
+  // -----------------
   const [activeCircuit, setActiveCircuit] = useState<CircuitKey>("Circuit1");
   const [sensors, setSensors] = useState<Record<CircuitKey, Sensors>>({
     Circuit1: { ...makeEmptySensors(), dischargeTemp: loadFromStorage<number[]>(storageKey("Circuit1", "dischargeTemp"), []) },
@@ -55,10 +87,18 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [rangeStart, setRangeStart] = useState<string>("");
   const [rangeEnd, setRangeEnd] = useState<string>("");
+  const [lastDownloadDate, setLastDownloadDate] = useState<string>("");
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: setpoint.Circuit1,
     Circuit2: setpoint.Circuit2
   });
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    () => new Set<string>(["High Side"])
+  );
+
+  // -----------------
+  // Refs
+  // -----------------
   const isEditingSetpointRef = useRef<Record<CircuitKey, boolean>>({
     Circuit1: false,
     Circuit2: false
@@ -71,23 +111,21 @@ export default function App() {
     Circuit1: Date.now(),
     Circuit2: Date.now()
   });
-  const [openGroups, setOpenGroups] = useState<Set<string>>(
-    () => new Set<string>(["High Side"])
-  );
 
-  const currentSensors = sensors[activeCircuit];
-
+  // -----------------
+  // URL-based circuit pick
+  // -----------------
   useEffect(() => {
-    const pickCircuit = () => {
-      const hash = window.location.hash.replace("#/", "").replace("#", "");
-      if (hash === "Circuit2" || hash === "circuit2") return "Circuit2";
-      return "Circuit1";
-    };
-    const apply = () => setActiveCircuit(pickCircuit());
+    const apply = () => setActiveCircuit(pickCircuitFromHash());
     apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
   }, []);
+
+  // -----------------
+  // Derived UI values
+  // -----------------
+  const currentSensors = sensors[activeCircuit];
   const groupConfig = [
     {
       name: "High Side",
@@ -126,6 +164,9 @@ export default function App() {
     }
   ];
 
+  // -----------------
+  // Setpoint helpers
+  // -----------------
   const updateSetpointLine = (circuit: CircuitKey, sp: number) => {
     setSetpointData(prev => {
       const prevArr = prev[circuit];
@@ -136,31 +177,40 @@ export default function App() {
     });
   };
 
+  // -----------------
+  // MQTT handlers
+  // -----------------
   const handleMqttMessage = useCallback((topic: string, val: number) => {
     const [circuitPart, topicPart] = topic.split("/", 2);
     if (!circuits.includes(circuitPart as CircuitKey) || !topicPart) return;
     const circuit = circuitPart as CircuitKey;
+    const value =
+      topicPart.endsWith("_Temperature") ? toMetricTemp(val) :
+      topicPart.endsWith("_AbsolutePressure") ? toMetricPressure(val) :
+      val;
 
     setSensors(prev => {
       const next = { ...prev, [circuit]: { ...prev[circuit] } };
       const c = next[circuit];
-      switch(topicPart){
-        case "HighSide_Temperature": c.highTemp = pushRolling(c.highTemp, val); break;
-        case "HighSide_AbsolutePressure": c.highPressure = pushRolling(c.highPressure, val); break;
-        case "EXV_Temperature": c.expTemp = pushRolling(c.expTemp, val); break;
-        case "EXV_AbsolutePressure": c.expPressure = pushRolling(c.expPressure, val); break;
-        case "LowSide_Temperature": c.lowTemp = pushRolling(c.lowTemp, val); break;
-        case "LowSide_AbsolutePressure": c.lowPressure = pushRolling(c.lowPressure, val); break;
-        case "Evaporator_Temperature": c.evapTemp = pushRolling(c.evapTemp, val); break;
-        case "Evaporator_AbsolutePressure": c.evapPressure = pushRolling(c.evapPressure, val); break;
-        case "Space_Temperature": c.spaceTemp = pushRolling(c.spaceTemp, val); break;
+      switch (topicPart) {
+        case "HighSide_Temperature": c.highTemp = pushRolling(c.highTemp, value); break;
+        case "HighSide_AbsolutePressure": c.highPressure = pushRolling(c.highPressure, value); break;
+        case "EXV_Temperature": c.expTemp = pushRolling(c.expTemp, value); break;
+        case "EXV_AbsolutePressure": c.expPressure = pushRolling(c.expPressure, value); break;
+        case "LowSide_Temperature": c.lowTemp = pushRolling(c.lowTemp, value); break;
+        case "LowSide_AbsolutePressure": c.lowPressure = pushRolling(c.lowPressure, value); break;
+        case "Evaporator_Temperature": c.evapTemp = pushRolling(c.evapTemp, value); break;
+        case "Evaporator_AbsolutePressure": c.evapPressure = pushRolling(c.evapPressure, value); break;
+        case "Space_Temperature": c.spaceTemp = pushRolling(c.spaceTemp, value); break;
         case "Sample_Timestamp":
           latestSampleTimestampRef.current[circuit] = val;
           break;
         case "Discharge_Air_Temperature":
-          c.dischargeTemp = pushRolling(c.dischargeTemp, val);
+          c.dischargeTemp = pushRolling(c.dischargeTemp, value);
           setLabels(prevLabels => {
-            const sampleTs = Number.isFinite(latestSampleTimestampRef.current[circuit]) ? latestSampleTimestampRef.current[circuit] : Date.now();
+            const sampleTs = Number.isFinite(latestSampleTimestampRef.current[circuit])
+              ? latestSampleTimestampRef.current[circuit]
+              : Date.now();
             const nextLabels = pushRolling(prevLabels[circuit], sampleTs);
             saveToStorage(storageKey(circuit, "labels"), nextLabels);
             return { ...prevLabels, [circuit]: nextLabels };
@@ -173,13 +223,13 @@ export default function App() {
           saveToStorage(storageKey(circuit, "dischargeTemp"), c.dischargeTemp);
           break;
         case "Space_Setpoint_Temperature":
-          setSetpoint(prevSet => ({ ...prevSet, [circuit]: val }));
-          latestSetpointRef.current[circuit] = val;
+          setSetpoint(prevSet => ({ ...prevSet, [circuit]: value }));
+          latestSetpointRef.current[circuit] = value;
           setTempSetpointInput(prevInput => {
             if (isEditingSetpointRef.current[circuit]) return prevInput;
-            return { ...prevInput, [circuit]: val };
+            return { ...prevInput, [circuit]: value };
           });
-          localStorage.setItem(storageKey(circuit, "currentSetpoint"), val.toString());
+          localStorage.setItem(storageKey(circuit, "currentSetpoint"), value.toString());
           break;
       }
       return next;
@@ -188,21 +238,13 @@ export default function App() {
 
   const handleTextMessage = useCallback((topic: string, payload: string) => {
     if (topic === "Data/Available_Dates") {
-      const dates = payload
-        .split(",")
-        .map(p => p.trim())
-        .filter(Boolean)
-        .sort((a, b) => {
-          const pa = a.split("-").reverse().join("");
-          const pb = b.split("-").reverse().join("");
-          return pb.localeCompare(pa);
-        });
+      const dates = sortDatesNewest(
+        payload.split(",").map(p => p.trim()).filter(Boolean)
+      );
       setAvailableDates(dates);
-      if (!dates.length) {
-        return;
-      }
+      if (!dates.length) return;
       if (!selectedDate) {
-        const today = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
+        const today = todayStr();
         const next = dates.includes(today) ? today : dates[0];
         setSelectedDate(next);
         requestTimeRange(next);
@@ -215,7 +257,7 @@ export default function App() {
     }
     if (topic === "Data/Download") {
       if (!payload) return;
-      const dateStr = selectedDate || availableDates[0] || new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
+      const dateStr = lastDownloadDate || selectedDate || availableDates[0] || todayStr();
       const blob = new Blob([payload], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -236,19 +278,20 @@ export default function App() {
     onConnect: () => requestDates()
   });
 
+  // -----------------
+  // UI actions
+  // -----------------
   const updateSetpoint = (circuit: CircuitKey, sp: number) => {
     setSetpoint(prev => ({ ...prev, [circuit]: sp }));
     latestSetpointRef.current[circuit] = sp;
     localStorage.setItem(storageKey(circuit, "currentSetpoint"), sp.toString());
     updateSetpointLine(circuit, sp);
 
-    if(clientRef.current?.connected){
+    if (clientRef.current?.connected) {
       clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, sp.toString(), { retain: true });
       clientRef.current.publish("Data/Setpoint_Record", `${circuit} ${sp}`);
     }
   };
-
-  const formatVal = (v: number | undefined) => Number.isFinite(v!) ? v!.toFixed(1) : "—";
 
   const requestDates = () => {
     if (clientRef.current?.connected) {
@@ -263,7 +306,8 @@ export default function App() {
   };
 
   const requestDownload = () => {
-    const dateStr = selectedDate || availableDates[0] || "";
+    const dateStr = selectedDate || availableDates[0] || todayStr();
+    setLastDownloadDate(dateStr);
     if (clientRef.current?.connected) {
       clientRef.current.publish("Data/Download_Request", dateStr);
     }
@@ -303,12 +347,11 @@ export default function App() {
     clearGraph(activeCircuit);
   };
 
-  const formatDate = (dateStr: string) => {
-    const parts = dateStr.split("-");
-    if (parts.length !== 3) return dateStr;
-    return `${parts[1]}/${parts[0]}/${parts[2]}`;
-  };
+  const formatVal = (v: number | undefined) => Number.isFinite(v!) ? v!.toFixed(1) : "—";
 
+  // -----------------
+  // Render
+  // -----------------
   return (
     <div className="app-root">
       <div className="container">

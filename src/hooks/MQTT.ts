@@ -2,6 +2,24 @@
 import { useEffect, useRef } from "react";
 import mqtt, { MqttClient } from "mqtt";
 
+// MQTT topic lists for sensor data and app data.
+const CIRCUITS = ["Circuit1", "Circuit2"];
+const SENSOR_TOPICS = [
+  "HighSide_Temperature", "HighSide_AbsolutePressure",
+  "EXV_Temperature", "EXV_AbsolutePressure",
+  "LowSide_Temperature", "LowSide_AbsolutePressure",
+  "Evaporator_Temperature", "Evaporator_AbsolutePressure",
+  "Space_Temperature", "Sample_Timestamp", "Discharge_Air_Temperature",
+  "Space_Setpoint_Temperature"
+];
+const DATA_TOPICS = [
+  "Data/Available_Dates",
+  "Data/Available_Time_Ranges",
+  "Data/Download",
+  "Data/Select_Time_Status",
+  "Data/Select_Range_Status"
+];
+
 type UseMqttProps = {
   url: string;
   username: string;
@@ -30,24 +48,11 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
       console.log("MQTT connected");
       onConnect?.(client);
 
-      const circuits = ["Circuit1", "Circuit2"];
-      const baseTopics = [
-        "HighSide_Temperature", "HighSide_AbsolutePressure",
-        "EXV_Temperature", "EXV_AbsolutePressure",
-        "LowSide_Temperature", "LowSide_AbsolutePressure",
-        "Evaporator_Temperature", "Evaporator_AbsolutePressure",
-        "Space_Temperature", "Sample_Timestamp", "Discharge_Air_Temperature",
-        "Space_Setpoint_Temperature"
-      ];
-      const topics = circuits.flatMap(circuit =>
-        baseTopics.map(topic => `${circuit}/${topic}`)
+      const topics = CIRCUITS.flatMap(circuit =>
+        SENSOR_TOPICS.map(topic => `${circuit}/${topic}`)
       );
       topics.push("latency/probe");
-      topics.push("Data/Available_Dates");
-      topics.push("Data/Available_Time_Ranges");
-      topics.push("Data/Download");
-      topics.push("Data/Select_Time_Status");
-      topics.push("Data/Select_Range_Status");
+      DATA_TOPICS.forEach(t => topics.push(t));
 
       topics.forEach(t => {
         client.subscribe(t, { qos: 0 }, (err) => {
@@ -70,6 +75,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
     });
 
     client.on("message", (topic: string, payload: Buffer) => {
+      // App data is text; sensor data is numbers.
       if (topic.startsWith("Data/")) {
         onTextMessage?.(topic, payload.toString());
         return;

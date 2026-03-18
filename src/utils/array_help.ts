@@ -1,9 +1,13 @@
 // src/utils/array_help.ts
-export const pushRolling = <T,>(prev: T[], newVal: T, maxPoints = 50): T[] =>
-  [...prev.slice(-maxPoints + 1), newVal];
+// Keep only the newest values for simple rolling charts.
+export const pushRolling = <T,>(prev: T[], newVal: T, maxPoints = 50): T[] => {
+  return [...prev.slice(-maxPoints + 1), newVal];
+};
 
-export const saveToStorage = (key: string, value: any) =>
+// Store small UI state so reloads keep recent data.
+export const saveToStorage = (key: string, value: any) => {
   localStorage.setItem(key, JSON.stringify(value));
+};
 
 export const loadFromStorage = <T,>(key: string, defaultValue: T): T => {
   const stored = localStorage.getItem(key);
