@@ -99,7 +99,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
       }
 
       const val = Number(payload.toString());
-      if (Number.isFinite(val)) {
+      if (Number.isFinite(val) || Number.isNaN(val)) {
         console.log("Message received", topic, val);
         onMessage(topic, val);
       } else {
