@@ -393,7 +393,7 @@ export default function App() {
   const toDisplayTemp = (c: number) => displayUnits === "metric" ? c : (c * 9 / 5) + 32;
   const toDisplayPressure = (pa: number) => displayUnits === "metric" ? pa / 1000 : pa / 6894.757;
   const formatVal = (v: number | undefined, kind?: "temp" | "pressure") => {
-    if (!Number.isFinite(v!)) return "—";
+    if (v === undefined || Number.isNaN(v)) return "--";
     const value = kind === "temp"
       ? toDisplayTemp(v!)
       : kind === "pressure"
