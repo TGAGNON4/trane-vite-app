@@ -130,7 +130,7 @@ export default function App() {
   // -----------------
   const currentSensors = sensors[activeCircuit];
   const tempUnit = displayUnits === "metric" ? "°C" : "°F";
-  const pressureUnit = displayUnits === "metric" ? "Pa" : "psi";
+  const pressureUnit = displayUnits === "metric" ? "kPa" : "psi";
   const groupConfig = [
     {
       name: "High Side",
@@ -272,6 +272,18 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
+    if (topic === "Data/Pressure_Download") {
+      if (!payload) return;
+      const dateStr = lastDownloadDate || selectedDate || availableDates[0] || todayStr();
+      const blob = new Blob([payload], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `pressures_${dateStr}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
   }, [selectedDate]);
 
   const clientRef = useMqtt({
@@ -318,6 +330,14 @@ export default function App() {
     }
   };
 
+  const requestPressureDownload = () => {
+    const dateStr = selectedDate || availableDates[0] || todayStr();
+    setLastDownloadDate(dateStr);
+    if (clientRef.current?.connected) {
+      clientRef.current.publish("Data/Pressure_Download_Request", `${activeCircuit} ${dateStr}`);
+    }
+  };
+
   const clearGraph = (circuit: CircuitKey) => {
     setSensors(prev => {
       const next = { ...prev, [circuit]: { ...prev[circuit] } };
@@ -353,7 +373,7 @@ export default function App() {
   };
 
   const toDisplayTemp = (c: number) => displayUnits === "metric" ? c : (c * 9 / 5) + 32;
-  const toDisplayPressure = (pa: number) => displayUnits === "metric" ? pa : pa / 6894.757;
+  const toDisplayPressure = (pa: number) => displayUnits === "metric" ? pa / 1000 : pa / 6894.757;
   const formatVal = (v: number | undefined, kind?: "temp" | "pressure") => {
     if (!Number.isFinite(v!)) return "—";
     const value = kind === "temp"
@@ -361,7 +381,7 @@ export default function App() {
       : kind === "pressure"
         ? toDisplayPressure(v!)
         : v!;
-    return kind === "pressure" ? value.toFixed(0) : value.toFixed(1);
+    return kind === "pressure" ? value.toFixed(1) : value.toFixed(1);
   };
 
   // -----------------
@@ -481,7 +501,7 @@ export default function App() {
                     requestTimeRange(next);
                   }}
                 >
-                  <option value="">today</option>
+                  <option value={todayStr()}>today</option>
                   {availableDates.map(d => (
                     <option key={d} value={d}>{formatDate(d)}</option>
                   ))}
@@ -505,6 +525,7 @@ export default function App() {
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={requestDownload}>Download file</button>
+                <button className="btn" onClick={requestPressureDownload}>Download pressure</button>
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={showLive}>Live data</button>

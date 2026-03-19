@@ -16,6 +16,7 @@ const DATA_TOPICS = [
   "Data/Available_Dates",
   "Data/Available_Time_Ranges",
   "Data/Download",
+  "Data/Pressure_Download",
   "Data/Select_Time_Status",
   "Data/Select_Range_Status"
 ];
