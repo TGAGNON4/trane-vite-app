@@ -13,12 +13,12 @@ const SENSOR_TOPICS = [
   "Space_Setpoint_Temperature"
 ];
 const DATA_TOPICS = [
-  "Data/Available_Dates",
-  "Data/Available_Time_Ranges",
-  "Data/Download",
-  "Data/Pressure_Download",
-  "Data/Select_Time_Status",
-  "Data/Select_Range_Status"
+  "Available_Dates",
+  "Available_Time_Ranges",
+  "Download",
+  "Pressure_Download",
+  "Select_Time_Status",
+  "Select_Range_Status"
 ];
 
 type UseMqttProps = {
@@ -53,7 +53,9 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
         SENSOR_TOPICS.map(topic => `${circuit}/${topic}`)
       );
       topics.push("latency/probe");
-      DATA_TOPICS.forEach(t => topics.push(t));
+      CIRCUITS.forEach(circuit => {
+        DATA_TOPICS.forEach(t => topics.push(`Data/${circuit}/${t}`));
+      });
 
       topics.forEach(t => {
         client.subscribe(t, { qos: 0 }, (err) => {

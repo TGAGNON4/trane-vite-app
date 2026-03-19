@@ -125,6 +125,13 @@ export default function App() {
     return () => window.removeEventListener("hashchange", apply);
   }, []);
 
+  useEffect(() => {
+    setAvailableDates([]);
+    setSelectedDate("");
+    setTimeRange("");
+    requestDates();
+  }, [activeCircuit]);
+
   // -----------------
   // Derived UI values
   // -----------------
@@ -242,7 +249,10 @@ export default function App() {
   }, []);
 
   const handleTextMessage = useCallback((topic: string, payload: string) => {
-    if (topic === "Data/Available_Dates") {
+    const prefix = `Data/${activeCircuit}/`;
+    if (!topic.startsWith(prefix)) return;
+    const name = topic.slice(prefix.length);
+    if (name === "Available_Dates") {
       const dates = sortDatesNewest(
         payload.split(",").map(p => p.trim()).filter(Boolean)
       );
@@ -256,11 +266,11 @@ export default function App() {
       }
       return;
     }
-    if (topic === "Data/Available_Time_Ranges") {
+    if (name === "Available_Time_Ranges") {
       setTimeRange(payload || "");
       return;
     }
-    if (topic === "Data/Download") {
+    if (name === "Download") {
       if (!payload) return;
       const dateStr = lastDownloadDate || selectedDate || availableDates[0] || todayStr();
       const blob = new Blob([payload], { type: "text/plain" });
@@ -272,7 +282,7 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
-    if (topic === "Data/Pressure_Download") {
+    if (name === "Pressure_Download") {
       if (!payload) return;
       const dateStr = lastDownloadDate || selectedDate || availableDates[0] || todayStr();
       const blob = new Blob([payload], { type: "text/plain" });
@@ -284,7 +294,7 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
-  }, [selectedDate]);
+  }, [activeCircuit, selectedDate, lastDownloadDate, availableDates]);
 
   const clientRef = useMqtt({
     url: "wss://seniordesignmqtt.duckdns.org:8083",
@@ -306,19 +316,19 @@ export default function App() {
 
     if (clientRef.current?.connected) {
       clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, sp.toString(), { retain: true });
-      clientRef.current.publish("Data/Setpoint_Record", `${circuit} ${sp}`);
+      clientRef.current.publish(`Data/${circuit}/Setpoint_Record`, `${sp}`);
     }
   };
 
   const requestDates = () => {
     if (clientRef.current?.connected) {
-      clientRef.current.publish("Data/Available_Dates_Request", "");
+      clientRef.current.publish(`Data/${activeCircuit}/Available_Dates_Request`, "");
     }
   };
 
   const requestTimeRange = (dateStr: string) => {
     if (clientRef.current?.connected) {
-      clientRef.current.publish("Data/Available_Time_Ranges_Request", dateStr);
+      clientRef.current.publish(`Data/${activeCircuit}/Available_Time_Ranges_Request`, dateStr);
     }
   };
 
@@ -326,7 +336,7 @@ export default function App() {
     const dateStr = selectedDate || availableDates[0] || todayStr();
     setLastDownloadDate(dateStr);
     if (clientRef.current?.connected) {
-      clientRef.current.publish("Data/Download_Request", dateStr);
+      clientRef.current.publish(`Data/${activeCircuit}/Download_Request`, dateStr);
     }
   };
 
@@ -334,7 +344,7 @@ export default function App() {
     const dateStr = selectedDate || availableDates[0] || todayStr();
     setLastDownloadDate(dateStr);
     if (clientRef.current?.connected) {
-      clientRef.current.publish("Data/Pressure_Download_Request", `${activeCircuit} ${dateStr}`);
+      clientRef.current.publish(`Data/${activeCircuit}/Pressure_Download_Request`, dateStr);
     }
   };
 
@@ -360,11 +370,11 @@ export default function App() {
   const requestRange = () => {
     if (!rangeStart || !rangeEnd) return;
     const payload = selectedDate
-      ? `${activeCircuit} ${selectedDate} ${rangeStart} ${rangeEnd}`
-      : `${activeCircuit} ${rangeStart} ${rangeEnd}`;
+      ? `${selectedDate} ${rangeStart} ${rangeEnd}`
+      : `${rangeStart} ${rangeEnd}`;
     if (clientRef.current?.connected) {
       clearGraph(activeCircuit);
-      clientRef.current.publish("Data/Select_Range_Request", payload);
+      clientRef.current.publish(`Data/${activeCircuit}/Select_Range_Request`, payload);
     }
   };
 
