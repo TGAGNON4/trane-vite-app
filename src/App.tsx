@@ -89,7 +89,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [rangeStart, setRangeStart] = useState<string>("");
   const [rangeEnd, setRangeEnd] = useState<string>("");
-  const [lastDownloadDate, setLastDownloadDate] = useState<string>("");
+  const lastDownloadDateRef = useRef<string>("");
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: setpoint.Circuit1,
     Circuit2: setpoint.Circuit2
@@ -252,6 +252,12 @@ export default function App() {
     const prefix = `Data/${activeCircuit}/`;
     if (!topic.startsWith(prefix)) return;
     const name = topic.slice(prefix.length);
+    const extractPayload = (raw: string) => {
+      if (!raw.startsWith("DATE:")) return { date: "", body: raw };
+      const [first, ...rest] = raw.split("\n");
+      const date = first.replace("DATE:", "").trim();
+      return { date, body: rest.join("\n") };
+    };
     if (name === "Available_Dates") {
       const dates = sortDatesNewest(
         payload.split(",").map(p => p.trim()).filter(Boolean)
@@ -272,8 +278,9 @@ export default function App() {
     }
     if (name === "Download") {
       if (!payload) return;
-      const dateStr = lastDownloadDate || selectedDate || availableDates[0] || todayStr();
-      const blob = new Blob([payload], { type: "text/plain" });
+      const parsed = extractPayload(payload);
+      const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
+      const blob = new Blob([parsed.body], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -284,8 +291,9 @@ export default function App() {
     }
     if (name === "Pressure_Download") {
       if (!payload) return;
-      const dateStr = lastDownloadDate || selectedDate || availableDates[0] || todayStr();
-      const blob = new Blob([payload], { type: "text/plain" });
+      const parsed = extractPayload(payload);
+      const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
+      const blob = new Blob([parsed.body], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -294,7 +302,7 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
-  }, [activeCircuit, selectedDate, lastDownloadDate, availableDates]);
+  }, [activeCircuit, selectedDate, availableDates]);
 
   const clientRef = useMqtt({
     url: "wss://seniordesignmqtt.duckdns.org:8083",
@@ -334,7 +342,7 @@ export default function App() {
 
   const requestDownload = () => {
     const dateStr = selectedDate || availableDates[0] || todayStr();
-    setLastDownloadDate(dateStr);
+    lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
       clientRef.current.publish(`Data/${activeCircuit}/Download_Request`, dateStr);
     }
@@ -342,7 +350,7 @@ export default function App() {
 
   const requestPressureDownload = () => {
     const dateStr = selectedDate || availableDates[0] || todayStr();
-    setLastDownloadDate(dateStr);
+    lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
       clientRef.current.publish(`Data/${activeCircuit}/Pressure_Download_Request`, dateStr);
     }
