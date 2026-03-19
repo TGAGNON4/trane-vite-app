@@ -58,6 +58,8 @@ const pickCircuitFromHash = () => {
   return "Circuit1" as const;
 };
 
+// Source units: set to "metric" if MQTT already sends °C and Pa.
+const INPUT_UNITS: "imperial" | "metric" = "metric";
 const toMetricTemp = (f: number) => (f - 32) * 5 / 9;
 const toMetricPressure = (psi: number) => psi * 6894.757;
 
@@ -95,6 +97,7 @@ export default function App() {
   const [openGroups, setOpenGroups] = useState<Set<string>>(
     () => new Set<string>(["High Side"])
   );
+  const [displayUnits, setDisplayUnits] = useState<"metric" | "imperial">("metric");
 
   // -----------------
   // Refs
@@ -126,40 +129,42 @@ export default function App() {
   // Derived UI values
   // -----------------
   const currentSensors = sensors[activeCircuit];
+  const tempUnit = displayUnits === "metric" ? "°C" : "°F";
+  const pressureUnit = displayUnits === "metric" ? "Pa" : "psi";
   const groupConfig = [
     {
       name: "High Side",
       items: [
-        { title: "Temperature", value: currentSensors.highTemp.slice(-1)[0], unit: "°C" },
-        { title: "Absolute Pressure", value: currentSensors.highPressure.slice(-1)[0], unit: "Pa" }
+        { title: "Temperature", value: currentSensors.highTemp.slice(-1)[0], unit: tempUnit },
+        { title: "Absolute Pressure", value: currentSensors.highPressure.slice(-1)[0], unit: pressureUnit }
       ]
     },
     {
       name: "Expansion Valve",
       items: [
-        { title: "Temperature", value: currentSensors.expTemp.slice(-1)[0], unit: "°C" },
-        { title: "Absolute Pressure", value: currentSensors.expPressure.slice(-1)[0], unit: "Pa" }
+        { title: "Temperature", value: currentSensors.expTemp.slice(-1)[0], unit: tempUnit },
+        { title: "Absolute Pressure", value: currentSensors.expPressure.slice(-1)[0], unit: pressureUnit }
       ]
     },
     {
       name: "Low Side",
       items: [
-        { title: "Temperature", value: currentSensors.lowTemp.slice(-1)[0], unit: "°C" },
-        { title: "Absolute Pressure", value: currentSensors.lowPressure.slice(-1)[0], unit: "Pa" }
+        { title: "Temperature", value: currentSensors.lowTemp.slice(-1)[0], unit: tempUnit },
+        { title: "Absolute Pressure", value: currentSensors.lowPressure.slice(-1)[0], unit: pressureUnit }
       ]
     },
     {
       name: "Evaporator",
       items: [
-        { title: "Temperature", value: currentSensors.evapTemp.slice(-1)[0], unit: "°C" },
-        { title: "Absolute Pressure", value: currentSensors.evapPressure.slice(-1)[0], unit: "Pa" }
+        { title: "Temperature", value: currentSensors.evapTemp.slice(-1)[0], unit: tempUnit },
+        { title: "Absolute Pressure", value: currentSensors.evapPressure.slice(-1)[0], unit: pressureUnit }
       ]
     },
     {
       name: "Other",
       items: [
-        { title: "Space Temperature", value: currentSensors.spaceTemp.slice(-1)[0], unit: "°C" },
-        { title: "Discharge Air Temperature", value: currentSensors.dischargeTemp.slice(-1)[0], unit: "°C" }
+        { title: "Space Temperature", value: currentSensors.spaceTemp.slice(-1)[0], unit: tempUnit },
+        { title: "Discharge Air Temperature", value: currentSensors.dischargeTemp.slice(-1)[0], unit: tempUnit }
       ]
     }
   ];
@@ -185,8 +190,8 @@ export default function App() {
     if (!circuits.includes(circuitPart as CircuitKey) || !topicPart) return;
     const circuit = circuitPart as CircuitKey;
     const value =
-      topicPart.endsWith("_Temperature") ? toMetricTemp(val) :
-      topicPart.endsWith("_AbsolutePressure") ? toMetricPressure(val) :
+      INPUT_UNITS === "imperial" && topicPart.endsWith("_Temperature") ? toMetricTemp(val) :
+      INPUT_UNITS === "imperial" && topicPart.endsWith("_AbsolutePressure") ? toMetricPressure(val) :
       val;
 
     setSensors(prev => {
@@ -347,7 +352,17 @@ export default function App() {
     clearGraph(activeCircuit);
   };
 
-  const formatVal = (v: number | undefined) => Number.isFinite(v!) ? v!.toFixed(1) : "—";
+  const toDisplayTemp = (c: number) => displayUnits === "metric" ? c : (c * 9 / 5) + 32;
+  const toDisplayPressure = (pa: number) => displayUnits === "metric" ? pa : pa / 6894.757;
+  const formatVal = (v: number | undefined, kind?: "temp" | "pressure") => {
+    if (!Number.isFinite(v!)) return "—";
+    const value = kind === "temp"
+      ? toDisplayTemp(v!)
+      : kind === "pressure"
+        ? toDisplayPressure(v!)
+        : v!;
+    return kind === "pressure" ? value.toFixed(0) : value.toFixed(1);
+  };
 
   // -----------------
   // Render
@@ -357,7 +372,15 @@ export default function App() {
       <div className="container">
         <header className="header">
           <h1>Refrigeration Dashboard</h1>
-          <div>MQTT sensor data</div>
+          <div className="control-row" style={{ marginTop: "0.5rem" }}>
+            <div>MQTT sensor data</div>
+            <button
+              className="btn"
+              onClick={() => setDisplayUnits(prev => prev === "metric" ? "imperial" : "metric")}
+            >
+              {displayUnits === "metric" ? "Show Imperial" : "Show Metric"}
+            </button>
+          </div>
           <div className="menu-bar">
             <span className="menu-label">
               {activeCircuit === "Circuit1" ? "Circuit 1" : "Circuit 2"}
@@ -406,7 +429,15 @@ export default function App() {
                 </button>
                 <div id={bodyId} className={`accordion-body ${isOpen ? "is-open" : "is-collapsed"}`}>
                   {group.items.map(item => (
-                    <SensorCard key={item.title} title={item.title} value={formatVal(item.value)} unit={item.unit}/>
+                    <SensorCard
+                      key={item.title}
+                      title={item.title}
+                      value={formatVal(
+                        item.value,
+                        item.title.includes("Pressure") ? "pressure" : "temp"
+                      )}
+                      unit={item.unit}
+                    />
                   ))}
                 </div>
               </div>
