@@ -62,6 +62,8 @@ const pickCircuitFromHash = () => {
 const INPUT_UNITS: "imperial" | "metric" = "metric";
 const toMetricTemp = (f: number) => (f - 32) * 5 / 9;
 const toMetricPressure = (psi: number) => psi * 6894.757;
+const SETPOINT_MIN_C = -12;
+const SETPOINT_MAX_C = 32;
 
 export default function App() {
   // -----------------
@@ -237,10 +239,6 @@ export default function App() {
         case "Space_Setpoint_Temperature":
           setSetpoint(prevSet => ({ ...prevSet, [circuit]: value }));
           latestSetpointRef.current[circuit] = value;
-          setTempSetpointInput(prevInput => {
-            if (isEditingSetpointRef.current[circuit]) return prevInput;
-            return { ...prevInput, [circuit]: value };
-          });
           localStorage.setItem(storageKey(circuit, "currentSetpoint"), value.toString());
           break;
       }
@@ -316,15 +314,17 @@ export default function App() {
   // -----------------
   // UI actions
   // -----------------
-  const updateSetpoint = (circuit: CircuitKey, sp: number) => {
-    setSetpoint(prev => ({ ...prev, [circuit]: sp }));
-    latestSetpointRef.current[circuit] = sp;
-    localStorage.setItem(storageKey(circuit, "currentSetpoint"), sp.toString());
-    updateSetpointLine(circuit, sp);
+  const updateSetpoint = (circuit: CircuitKey, displayValue: number) => {
+    const metricRaw = displayUnits === "metric" ? displayValue : toMetricTemp(displayValue);
+    const metricClamped = Math.min(SETPOINT_MAX_C, Math.max(SETPOINT_MIN_C, metricRaw));
+    setSetpoint(prev => ({ ...prev, [circuit]: metricClamped }));
+    latestSetpointRef.current[circuit] = metricClamped;
+    localStorage.setItem(storageKey(circuit, "currentSetpoint"), metricClamped.toString());
+    updateSetpointLine(circuit, metricClamped);
 
     if (clientRef.current?.connected) {
-      clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, sp.toString(), { retain: true });
-      clientRef.current.publish(`Data/${circuit}/Setpoint_Record`, `${sp}`);
+      clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, metricClamped.toString(), { retain: true });
+      clientRef.current.publish(`Data/${circuit}/Setpoint_Record`, `${metricClamped}`);
     }
   };
 
@@ -401,6 +401,17 @@ export default function App() {
         : v!;
     return kind === "pressure" ? value.toFixed(1) : value.toFixed(1);
   };
+
+  useEffect(() => {
+    setTempSetpointInput(prev => {
+      const next = { ...prev };
+      circuits.forEach(circuit => {
+        if (isEditingSetpointRef.current[circuit]) return;
+        next[circuit] = displayUnits === "metric" ? setpoint[circuit] : toDisplayTemp(setpoint[circuit]);
+      });
+      return next;
+    });
+  }, [displayUnits, setpoint]);
 
   // -----------------
   // Render
@@ -484,19 +495,29 @@ export default function App() {
 
           <div className="right-col">
             <div className="card graph-card">
-              <Graph labels={labels[activeCircuit]} dischargeTemp={currentSensors.dischargeTemp} setpointData={setpointData[activeCircuit]}/>
+              <Graph
+                labels={labels[activeCircuit]}
+                dischargeTemp={currentSensors.dischargeTemp.map(toDisplayTemp)}
+                setpointData={setpointData[activeCircuit].map(toDisplayTemp)}
+                temperatureUnit={tempUnit}
+              />
             </div>
 
             <div className="card setpoint-card">
               <div>Set Temperature</div>
               <div className="control-row">
-                <input type="number" step="0.1" value={tempSetpointInput[activeCircuit] || ""} 
+                <input
+                  type="number"
+                  step="0.1"
+                  min={displayUnits === "metric" ? SETPOINT_MIN_C : toDisplayTemp(SETPOINT_MIN_C)}
+                  max={displayUnits === "metric" ? SETPOINT_MAX_C : toDisplayTemp(SETPOINT_MAX_C)}
+                  value={tempSetpointInput[activeCircuit] || ""} 
                   onChange={e=>setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))} 
                   onFocus={() => { isEditingSetpointRef.current[activeCircuit] = true; }}
                   onBlur={() => {
                     isEditingSetpointRef.current[activeCircuit] = false;
                     if (tempSetpointInput[activeCircuit] === "") {
-                      setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: setpoint[activeCircuit] }));
+                      setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: displayUnits === "metric" ? setpoint[activeCircuit] : toDisplayTemp(setpoint[activeCircuit]) }));
                     }
                   }}
                   onKeyDown={e=>{const v = tempSetpointInput[activeCircuit]; if(e.key==="Enter"&&v!=="")updateSetpoint(activeCircuit, v as number)}} 

@@ -30,9 +30,10 @@ type GraphProps = {
   labels: number[];
   dischargeTemp: number[];
   setpointData: number[];
+  temperatureUnit: string;
 };
 
-export const Graph: React.FC<GraphProps> = ({ labels, dischargeTemp, setpointData }) => {
+export const Graph: React.FC<GraphProps> = ({ labels, dischargeTemp, setpointData, temperatureUnit }) => {
   // Labels are epoch ms, show as local time.
   const formattedLabels = labels.map(ts => new Date(ts).toLocaleTimeString());
   const data = {
@@ -85,9 +86,9 @@ export const Graph: React.FC<GraphProps> = ({ labels, dischargeTemp, setpointDat
           }
         }
       },
-      y:{title:{display:true,text:"Temperature (°C)"}}
+      y:{title:{display:true,text:`Temperature (${temperatureUnit})`}}
     }
   };
 
-  return <Line data={data} options={options} />;
+  return <Line data={data} options={options} redraw />;
 };
