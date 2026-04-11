@@ -18,7 +18,8 @@ const DATA_TOPICS = [
   "Download",
   "Pressure_Download",
   "Select_Time_Status",
-  "Select_Range_Status"
+  "Select_Range_Status",
+  "Setpoint_Record"
 ];
 
 type UseMqttProps = {

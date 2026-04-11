@@ -247,9 +247,8 @@ export default function App() {
   }, []);
 
   const handleTextMessage = useCallback((topic: string, payload: string) => {
-    const prefix = `Data/${activeCircuit}/`;
-    if (!topic.startsWith(prefix)) return;
-    const name = topic.slice(prefix.length);
+    const [prefix, circuit, name] = topic.split("/");
+    if (prefix !== "Data" || !circuits.includes(circuit as CircuitKey) || !name) return;
     const extractPayload = (raw: string) => {
       if (!raw.startsWith("DATE:")) return { date: "", body: raw };
       const [first, ...rest] = raw.split("\n");
@@ -300,7 +299,24 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
-  }, [activeCircuit, selectedDate, availableDates]);
+    if (name === "Setpoint_Record") {
+      const circuitKey = circuit as CircuitKey;
+      let valueStr = payload.trim();
+      const parts = valueStr.split(" ").filter(Boolean);
+      if (parts.length === 2 && circuits.includes(parts[0] as CircuitKey)) {
+        valueStr = parts[1];
+      }
+      const parsed = Number(valueStr);
+      if (Number.isFinite(parsed)) {
+        const value = parsed;
+        setSetpoint(prev => ({ ...prev, [circuitKey]: value }));
+        latestSetpointRef.current[circuitKey] = value;
+        localStorage.setItem(storageKey(circuitKey, "currentSetpoint"), value.toString());
+        updateSetpointLine(circuitKey, value);
+      }
+      return;
+    }
+  }, [displayUnits, selectedDate, availableDates]);
 
   const clientRef = useMqtt({
     url: "wss://seniordesignmqtt.duckdns.org:8083",
