@@ -419,8 +419,9 @@ export default function App() {
 
   const clearRpmOverride = (circuit: CircuitKey) => {
     if (clientRef.current?.connected) {
-      // "none" payload tells the Pi to clear the override; empty retained clears it on the broker.
-      clientRef.current.publish(`${circuit}/Compressor_RPM`, "none", { retain: true });
+      // Empty payload + retain=true is the MQTT standard for deleting a retained message.
+      // The Pi also recognises empty payload as "clear override".
+      clientRef.current.publish(`${circuit}/Compressor_RPM`, "", { retain: true });
     }
   };
 
