@@ -297,7 +297,7 @@ export default function App() {
       setTimeRange(payload || "");
       return;
     }
-    if (name === "Download") {
+    if (name === "Temperature_Download") {
       if (!payload) return;
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
@@ -364,7 +364,7 @@ export default function App() {
     const dateStr = selectedDate || availableDates[0] || todayStr();
     lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
-      clientRef.current.publish(`Data/${activeCircuit}/Download_Request`, dateStr);
+      clientRef.current.publish(`Data/${activeCircuit}/Temperature_Download_Request`, dateStr);
     }
   };
 
@@ -608,8 +608,8 @@ export default function App() {
                 <button className="btn" onClick={requestRange}>Show range</button>
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
-                <button className="btn" onClick={requestDownload}>Download file</button>
-                <button className="btn" onClick={requestPressureDownload}>Download pressure</button>
+                <button className="btn" onClick={requestDownload}>Download Temperatures</button>
+                <button className="btn" onClick={requestPressureDownload}>Download Pressures</button>
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={showLive}>Live data</button>
