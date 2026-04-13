@@ -108,6 +108,10 @@ export default function App() {
     Circuit1: "",
     Circuit2: ""
   });
+  const [hmiConnected, setHmiConnected] = useState<Record<CircuitKey, boolean | null>>({
+    Circuit1: null,
+    Circuit2: null
+  });
 
   // -----------------
   // Refs
@@ -214,6 +218,11 @@ export default function App() {
         ...prev,
         [circuit]: (Number.isFinite(val) && val > 0) ? val : null
       }));
+      return;
+    }
+
+    if (topicPart === "HMI_Status") {
+      setHmiConnected(prev => ({ ...prev, [circuit]: val === 1 }));
       return;
     }
 
@@ -526,6 +535,12 @@ export default function App() {
                 temperatureUnit={tempUnit}
               />
             </div>
+
+            {hmiConnected[activeCircuit] === false && (
+              <div className="card" style={{ borderColor: "#f59e0b", color: "#f59e0b", padding: "0.5rem 1rem", fontSize: "0.9rem" }}>
+                HMI panel not connected
+              </div>
+            )}
 
             <div className="card setpoint-card">
               <div>Set Temperature</div>

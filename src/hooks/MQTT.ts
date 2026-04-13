@@ -11,7 +11,8 @@ const SENSOR_TOPICS = [
   "Evaporator_Temperature", "Evaporator_AbsolutePressure",
   "Space_Temperature", "Sample_Timestamp", "Discharge_Air_Temperature",
   "Space_Setpoint_Temperature",
-  "Compressor_RPM"
+  "Compressor_RPM",
+  "HMI_Status"
 ];
 const DATA_TOPICS = [
   "Available_Dates",
