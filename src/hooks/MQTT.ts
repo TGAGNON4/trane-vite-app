@@ -10,16 +10,18 @@ const SENSOR_TOPICS = [
   "LowSide_Temperature", "LowSide_AbsolutePressure",
   "Evaporator_Temperature", "Evaporator_AbsolutePressure",
   "Space_Temperature", "Sample_Timestamp", "Discharge_Air_Temperature",
-  "Space_Setpoint_Temperature"
+  "Space_Setpoint_Temperature",
+  "Compressor_RPM"
 ];
 const DATA_TOPICS = [
   "Available_Dates",
   "Available_Time_Ranges",
-  "Download",
+  "Temperature_Download",
   "Pressure_Download",
   "Select_Time_Status",
   "Select_Range_Status",
-  "Setpoint_Record"
+  "Setpoint_Record",
+  "Compressor_RPM"
 ];
 
 type UseMqttProps = {
