@@ -81,12 +81,6 @@ export default function App() {
     Circuit2: loadFromStorage<number[]>(storageKey("Circuit2", "setpointData"), [])
   });
   
-  // NEW: Track whether we're following MQTT or using manual override
-  const [followMqttSetpoint, setFollowMqttSetpoint] = useState<Record<CircuitKey, boolean>>({
-    Circuit1: true,
-    Circuit2: true
-  });
-  
   const [setpoint, setSetpoint] = useState<Record<CircuitKey, number>>({
     Circuit1: 5.0,
     Circuit2: 5.0
@@ -243,17 +237,12 @@ export default function App() {
           saveToStorage(storageKey(circuit, "dischargeTemp"), c.dischargeTemp);
           break;
         case "Space_Setpoint_Temperature":
-          // MODIFIED: Only update if we're in follow mode
-          setFollowMqttSetpoint(prevFollow => {
-            if (prevFollow[circuit]) {
-              setSetpoint(prevSet => ({ ...prevSet, [circuit]: value }));
-              latestSetpointRef.current[circuit] = value;
-              setTempSetpointInput(prevInput => {
-                if (isEditingSetpointRef.current[circuit]) return prevInput;
-                return { ...prevInput, [circuit]: value };
-              });
-            }
-            return prevFollow;
+          // Always accept MQTT setpoint updates
+          setSetpoint(prevSet => ({ ...prevSet, [circuit]: value }));
+          latestSetpointRef.current[circuit] = value;
+          setTempSetpointInput(prevInput => {
+            if (isEditingSetpointRef.current[circuit]) return prevInput;
+            return { ...prevInput, [circuit]: value };
           });
           break;
       }
@@ -330,9 +319,6 @@ export default function App() {
   // UI actions
   // -----------------
   const updateSetpoint = (circuit: CircuitKey, sp: number) => {
-    // Set manual override mode
-    setFollowMqttSetpoint(prev => ({ ...prev, [circuit]: false }));
-    
     setSetpoint(prev => ({ ...prev, [circuit]: sp }));
     latestSetpointRef.current[circuit] = sp;
     updateSetpointLine(circuit, sp);
@@ -341,11 +327,6 @@ export default function App() {
       clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, sp.toString(), { retain: true });
       clientRef.current.publish(`Data/${circuit}/Setpoint_Record`, `${sp}`);
     }
-  };
-
-  // NEW: Function to clear override and follow MQTT again
-  const followMqtt = (circuit: CircuitKey) => {
-    setFollowMqttSetpoint(prev => ({ ...prev, [circuit]: true }));
   };
 
   const requestDates = () => {
@@ -513,14 +494,7 @@ export default function App() {
             </div>
 
             <div className="card setpoint-card">
-              <div>
-                Set Temperature
-                {!followMqttSetpoint[activeCircuit] && (
-                  <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#facc15" }}>
-                    (Manual Override Active)
-                  </span>
-                )}
-              </div>
+              <div>Set Temperature</div>
               <div className="control-row">
                 <input type="number" step="0.1" value={tempSetpointInput[activeCircuit] || ""} 
                   onChange={e=>setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))} 
@@ -532,23 +506,12 @@ export default function App() {
                     }
                   }}
                   onKeyDown={e=>{const v = tempSetpointInput[activeCircuit]; if(e.key==="Enter"&&v!=="")updateSetpoint(activeCircuit, v as number)}} 
-                  className="number-input"
-                  disabled={followMqttSetpoint[activeCircuit]}
-                />
+                  className="number-input"/>
                 <button 
                   className="btn" 
                   onClick={()=>{const v = tempSetpointInput[activeCircuit]; if(v!=="")updateSetpoint(activeCircuit, v as number);}}
-                  disabled={followMqttSetpoint[activeCircuit]}
                 >
                   Update
-                </button>
-                <button 
-                  className="btn" 
-                  onClick={() => followMqtt(activeCircuit)}
-                  disabled={followMqttSetpoint[activeCircuit]}
-                  title="Follow MQTT setpoint updates"
-                >
-                  Follow MQTT
                 </button>
               </div>
             </div>
