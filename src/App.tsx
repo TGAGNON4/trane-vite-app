@@ -100,6 +100,14 @@ export default function App() {
     () => new Set<string>(["High Side"])
   );
   const [displayUnits, setDisplayUnits] = useState<"metric" | "imperial">("metric");
+  const [rpmOverride, setRpmOverride] = useState<Record<CircuitKey, number | null>>({
+    Circuit1: null,
+    Circuit2: null
+  });
+  const [rpmInput, setRpmInput] = useState<Record<CircuitKey, number | "">>({
+    Circuit1: "",
+    Circuit2: ""
+  });
 
   // -----------------
   // Refs
@@ -198,6 +206,17 @@ export default function App() {
     const [circuitPart, topicPart] = topic.split("/", 2);
     if (!circuits.includes(circuitPart as CircuitKey) || !topicPart) return;
     const circuit = circuitPart as CircuitKey;
+
+    // RPM override is not a sensor — handle it separately.
+    if (topicPart === "Compressor_RPM") {
+      // val > 0 means active override; 0 or NaN means cleared.
+      setRpmOverride(prev => ({
+        ...prev,
+        [circuit]: (Number.isFinite(val) && val > 0) ? val : null
+      }));
+      return;
+    }
+
     const value =
       INPUT_UNITS === "imperial" && topicPart.endsWith("_Temperature") ? toMetricTemp(val) :
       INPUT_UNITS === "imperial" && topicPart.endsWith("_AbsolutePressure") ? toMetricPressure(val) :
@@ -391,6 +410,20 @@ export default function App() {
     clearGraph(activeCircuit);
   };
 
+  const applyRpmOverride = (circuit: CircuitKey, rpm: number) => {
+    const clamped = Math.max(0, Math.min(4000, rpm));
+    if (clientRef.current?.connected) {
+      clientRef.current.publish(`${circuit}/Compressor_RPM`, `${clamped}`, { retain: true });
+    }
+  };
+
+  const clearRpmOverride = (circuit: CircuitKey) => {
+    if (clientRef.current?.connected) {
+      // "none" payload tells the Pi to clear the override; empty retained clears it on the broker.
+      clientRef.current.publish(`${circuit}/Compressor_RPM`, "none", { retain: true });
+    }
+  };
+
   const toDisplayTemp = (c: number) => displayUnits === "metric" ? c : (c * 9 / 5) + 32;
   const toDisplayPressure = (pa: number) => displayUnits === "metric" ? pa / 1000 : pa / 6894.757;
   const formatVal = (v: number | undefined, kind?: "temp" | "pressure") => {
@@ -513,6 +546,28 @@ export default function App() {
                 >
                   Update
                 </button>
+              </div>
+            </div>
+
+            <div className="card">
+              <div>Compressor RPM Override</div>
+              <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: rpmOverride[activeCircuit] !== null ? "var(--accent)" : "inherit" }}>
+                {rpmOverride[activeCircuit] !== null ? `Active: ${rpmOverride[activeCircuit]} RPM` : "No override active"}
+              </div>
+              <div className="control-row" style={{ marginTop: "0.5rem" }}>
+                <input
+                  type="number"
+                  step="100"
+                  min="0"
+                  max="4000"
+                  placeholder="RPM (0–4000)"
+                  value={rpmInput[activeCircuit]}
+                  onChange={e => setRpmInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
+                  onKeyDown={e => { const v = rpmInput[activeCircuit]; if (e.key === "Enter" && v !== "") applyRpmOverride(activeCircuit, v as number); }}
+                  className="number-input"
+                />
+                <button className="btn" onClick={() => { const v = rpmInput[activeCircuit]; if (v !== "") applyRpmOverride(activeCircuit, v as number); }}>Set</button>
+                <button className="btn" onClick={() => clearRpmOverride(activeCircuit)}>Clear</button>
               </div>
             </div>
 
