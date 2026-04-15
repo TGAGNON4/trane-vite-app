@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import "./App.css";
 import { SensorCard } from "./cmpnts/SensorCard";
-import { Graph } from "./cmpnts/Graph";
+import { ThermoChart, type ThermoSensors, type SatRow, type StatePoints } from "./cmpnts/ThermoChart";
 import { useMqtt } from "./hooks/MQTT";
 import { pushRolling, saveToStorage, loadFromStorage } from "./utils/array_help";
 
@@ -113,6 +113,16 @@ export default function App() {
     Circuit2: null
   });
 
+  // CoolProp-derived thermodynamic data published by the Pi
+  const [satTable, setSatTable] = useState<Record<CircuitKey, SatRow[] | null>>({
+    Circuit1: null,
+    Circuit2: null,
+  });
+  const [statePoints, setStatePoints] = useState<Record<CircuitKey, StatePoints | null>>({
+    Circuit1: null,
+    Circuit2: null,
+  });
+
   // -----------------
   // Refs
   // -----------------
@@ -211,9 +221,7 @@ export default function App() {
     if (!circuits.includes(circuitPart as CircuitKey) || !topicPart) return;
     const circuit = circuitPart as CircuitKey;
 
-    // RPM override is not a sensor — handle it separately.
     if (topicPart === "Compressor_RPM") {
-      // val > 0 means active override; 0 or NaN means cleared.
       setRpmOverride(prev => ({
         ...prev,
         [circuit]: (Number.isFinite(val) && val > 0) ? val : null
@@ -235,15 +243,15 @@ export default function App() {
       const next = { ...prev, [circuit]: { ...prev[circuit] } };
       const c = next[circuit];
       switch (topicPart) {
-        case "HighSide_Temperature": c.highTemp = pushRolling(c.highTemp, value); break;
-        case "HighSide_AbsolutePressure": c.highPressure = pushRolling(c.highPressure, value); break;
-        case "EXV_Temperature": c.expTemp = pushRolling(c.expTemp, value); break;
-        case "EXV_AbsolutePressure": c.expPressure = pushRolling(c.expPressure, value); break;
-        case "LowSide_Temperature": c.lowTemp = pushRolling(c.lowTemp, value); break;
-        case "LowSide_AbsolutePressure": c.lowPressure = pushRolling(c.lowPressure, value); break;
-        case "Evaporator_Temperature": c.evapTemp = pushRolling(c.evapTemp, value); break;
+        case "HighSide_Temperature":        c.highTemp     = pushRolling(c.highTemp, value);     break;
+        case "HighSide_AbsolutePressure":   c.highPressure = pushRolling(c.highPressure, value); break;
+        case "EXV_Temperature":             c.expTemp      = pushRolling(c.expTemp, value);      break;
+        case "EXV_AbsolutePressure":        c.expPressure  = pushRolling(c.expPressure, value);  break;
+        case "LowSide_Temperature":         c.lowTemp      = pushRolling(c.lowTemp, value);      break;
+        case "LowSide_AbsolutePressure":    c.lowPressure  = pushRolling(c.lowPressure, value);  break;
+        case "Evaporator_Temperature":      c.evapTemp     = pushRolling(c.evapTemp, value);     break;
         case "Evaporator_AbsolutePressure": c.evapPressure = pushRolling(c.evapPressure, value); break;
-        case "Space_Temperature": c.spaceTemp = pushRolling(c.spaceTemp, value); break;
+        case "Space_Temperature":           c.spaceTemp    = pushRolling(c.spaceTemp, value);    break;
         case "Sample_Timestamp":
           latestSampleTimestampRef.current[circuit] = val;
           break;
@@ -265,7 +273,6 @@ export default function App() {
           saveToStorage(storageKey(circuit, "dischargeTemp"), c.dischargeTemp);
           break;
         case "Space_Setpoint_Temperature":
-          // Always accept MQTT setpoint updates
           setSetpoint(prevSet => ({ ...prevSet, [circuit]: value }));
           latestSetpointRef.current[circuit] = value;
           setTempSetpointInput(prevInput => {
@@ -332,6 +339,28 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
+    // CoolProp saturation table — published once on Pi startup, retained
+    if (name === "R1234yf_Saturation_Table") {
+      try {
+        const table = JSON.parse(payload) as SatRow[];
+        const circuit = topic.split("/")[1] as CircuitKey;
+        if (circuits.includes(circuit)) {
+          setSatTable(prev => ({ ...prev, [circuit]: table }));
+        }
+      } catch { /* malformed JSON — ignore */ }
+      return;
+    }
+    // CoolProp state points — published every sample cycle, not retained
+    if (name === "R1234yf_State_Points") {
+      try {
+        const pts = JSON.parse(payload) as StatePoints;
+        const circuit = topic.split("/")[1] as CircuitKey;
+        if (circuits.includes(circuit)) {
+          setStatePoints(prev => ({ ...prev, [circuit]: pts }));
+        }
+      } catch { /* malformed JSON — ignore */ }
+      return;
+    }
   }, [activeCircuit, selectedDate, availableDates]);
 
   const clientRef = useMqtt({
@@ -350,7 +379,6 @@ export default function App() {
     setSetpoint(prev => ({ ...prev, [circuit]: sp }));
     latestSetpointRef.current[circuit] = sp;
     updateSetpointLine(circuit, sp);
-
     if (clientRef.current?.connected) {
       clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, sp.toString(), { retain: true });
       clientRef.current.publish(`Data/${circuit}/Setpoint_Record`, `${sp}`);
@@ -428,8 +456,6 @@ export default function App() {
 
   const clearRpmOverride = (circuit: CircuitKey) => {
     if (clientRef.current?.connected) {
-      // Empty payload + retain=true is the MQTT standard for deleting a retained message.
-      // The Pi also recognises empty payload as "clear override".
       clientRef.current.publish(`${circuit}/Compressor_RPM`, "", { retain: true });
     }
   };
@@ -443,7 +469,14 @@ export default function App() {
       : kind === "pressure"
         ? toDisplayPressure(v!)
         : v!;
-    return kind === "pressure" ? value.toFixed(1) : value.toFixed(1);
+    return value.toFixed(1);
+  };
+
+  // Build the ThermoSensors prop — includes all arrays for the chart panel
+  const thermoSensors: ThermoSensors = {
+    ...currentSensors,
+    labels: labels[activeCircuit],
+    setpointData: setpointData[activeCircuit],
   };
 
   // -----------------
@@ -492,47 +525,50 @@ export default function App() {
               const isOpen = openGroups.has(group.name);
               const bodyId = `accordion-body-${index}`;
               return (
-              <div key={group.name} className="accordion-group">
-                <button
-                  type="button"
-                  className="accordion-header"
-                  aria-expanded={isOpen}
-                  aria-controls={bodyId}
-                  onClick={() =>
-                    setOpenGroups(prev => {
-                      const next = new Set(prev);
-                      if (next.has(group.name)) next.delete(group.name);
-                      else next.add(group.name);
-                      return next;
-                    })
-                  }
-                >
-                  {group.name} Sensors
-                </button>
-                <div id={bodyId} className={`accordion-body ${isOpen ? "is-open" : "is-collapsed"}`}>
-                  {group.items.map(item => (
-                    <SensorCard
-                      key={item.title}
-                      title={item.title}
-                      value={formatVal(
-                        item.value,
-                        item.title.includes("Pressure") ? "pressure" : "temp"
-                      )}
-                      unit={item.unit}
-                    />
-                  ))}
+                <div key={group.name} className="accordion-group">
+                  <button
+                    type="button"
+                    className="accordion-header"
+                    aria-expanded={isOpen}
+                    aria-controls={bodyId}
+                    onClick={() =>
+                      setOpenGroups(prev => {
+                        const next = new Set(prev);
+                        if (next.has(group.name)) next.delete(group.name);
+                        else next.add(group.name);
+                        return next;
+                      })
+                    }
+                  >
+                    {group.name} Sensors
+                  </button>
+                  <div id={bodyId} className={`accordion-body ${isOpen ? "is-open" : "is-collapsed"}`}>
+                    {group.items.map(item => (
+                      <SensorCard
+                        key={item.title}
+                        title={item.title}
+                        value={formatVal(
+                          item.value,
+                          item.title.includes("Pressure") ? "pressure" : "temp"
+                        )}
+                        unit={item.unit}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );})}
+              );
+            })}
           </div>
 
           <div className="right-col">
-            <div className="card graph-card">
-              <Graph 
-                labels={labels[activeCircuit]} 
-                dischargeTemp={currentSensors.dischargeTemp} 
-                setpointData={setpointData[activeCircuit]}
-                temperatureUnit={tempUnit}
+            {/* Thermodynamic chart panel — replaces the old single Graph */}
+            <div className="card graph-card" style={{ height: "auto", minHeight: "clamp(320px, 50vh, 620px)" }}>
+              <ThermoChart
+                sensors={thermoSensors}
+                satTable={satTable[activeCircuit]}
+                statePoints={statePoints[activeCircuit]}
+                temperatureUnit={tempUnit as "°C" | "°F"}
+                displayUnits={displayUnits}
               />
             </div>
 
@@ -545,8 +581,8 @@ export default function App() {
             <div className="card setpoint-card">
               <div>Set Temperature</div>
               <div className="control-row">
-                <input type="number" step="0.1" value={tempSetpointInput[activeCircuit] || ""} 
-                  onChange={e=>setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))} 
+                <input type="number" step="0.1" value={tempSetpointInput[activeCircuit] || ""}
+                  onChange={e => setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
                   onFocus={() => { isEditingSetpointRef.current[activeCircuit] = true; }}
                   onBlur={() => {
                     isEditingSetpointRef.current[activeCircuit] = false;
@@ -554,11 +590,11 @@ export default function App() {
                       setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: setpoint[activeCircuit] }));
                     }
                   }}
-                  onKeyDown={e=>{const v = tempSetpointInput[activeCircuit]; if(e.key==="Enter"&&v!=="")updateSetpoint(activeCircuit, v as number)}} 
-                  className="number-input"/>
-                <button 
-                  className="btn" 
-                  onClick={()=>{const v = tempSetpointInput[activeCircuit]; if(v!=="")updateSetpoint(activeCircuit, v as number);}}
+                  onKeyDown={e => { const v = tempSetpointInput[activeCircuit]; if (e.key === "Enter" && v !== "") updateSetpoint(activeCircuit, v as number); }}
+                  className="number-input" />
+                <button
+                  className="btn"
+                  onClick={() => { const v = tempSetpointInput[activeCircuit]; if (v !== "") updateSetpoint(activeCircuit, v as number); }}
                 >
                   Update
                 </button>
@@ -572,11 +608,7 @@ export default function App() {
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <input
-                  type="number"
-                  step="100"
-                  min="0"
-                  max="4000"
-                  placeholder="RPM (0–4000)"
+                  type="number" step="100" min="0" max="4000" placeholder="RPM (0–4000)"
                   value={rpmInput[activeCircuit]}
                   onChange={e => setRpmInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
                   onKeyDown={e => { const v = rpmInput[activeCircuit]; if (e.key === "Enter" && v !== "") applyRpmOverride(activeCircuit, v as number); }}
@@ -609,18 +641,8 @@ export default function App() {
               </div>
               {timeRange && <div className="control-row" style={{ marginTop: "0.5rem" }}>{timeRange}</div>}
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
-                <input
-                  className="number-input"
-                  placeholder="Start HH:MM:SS"
-                  value={rangeStart}
-                  onChange={e => setRangeStart(e.target.value)}
-                />
-                <input
-                  className="number-input"
-                  placeholder="End HH:MM:SS"
-                  value={rangeEnd}
-                  onChange={e => setRangeEnd(e.target.value)}
-                />
+                <input className="number-input" placeholder="Start HH:MM:SS" value={rangeStart} onChange={e => setRangeStart(e.target.value)} />
+                <input className="number-input" placeholder="End HH:MM:SS" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)} />
                 <button className="btn" onClick={requestRange}>Show range</button>
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
