@@ -2,7 +2,6 @@
 import { useEffect, useRef } from "react";
 import mqtt, { MqttClient } from "mqtt";
 
-// MQTT topic lists for sensor data and app data.
 const CIRCUITS = ["Circuit1", "Circuit2"];
 const SENSOR_TOPICS = [
   "HighSide_Temperature", "HighSide_AbsolutePressure",
@@ -22,7 +21,10 @@ const DATA_TOPICS = [
   "Select_Time_Status",
   "Select_Range_Status",
   "Setpoint_Record",
-  "Compressor_RPM"
+  "Compressor_RPM",
+  // CoolProp thermodynamic data
+  "R1234yf_Saturation_Table",
+  "R1234yf_State_Points",
 ];
 
 type UseMqttProps = {
@@ -43,7 +45,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
       username,
       password,
       clientId: "react_" + Math.random().toString(16).slice(2),
-      reconnectPeriod: 2000, // reconnect every 2s
+      reconnectPeriod: 2000,
       clean: true,
     });
 
@@ -69,33 +71,20 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
       });
     });
 
-    client.on("reconnect", () => {
-      console.log("MQTT reconnecting...");
-    });
-
-    client.on("offline", () => {
-      console.log("MQTT offline");
-    });
-
-    client.on("error", (err) => {
-      console.error("MQTT error:", err.message);
-    });
+    client.on("reconnect", () => console.log("MQTT reconnecting..."));
+    client.on("offline",   () => console.log("MQTT offline"));
+    client.on("error",     (err) => console.error("MQTT error:", err.message));
 
     client.on("message", (topic: string, payload: Buffer) => {
-      // App data is text; sensor data is numbers.
       if (topic.startsWith("Data/")) {
         onTextMessage?.(topic, payload.toString());
         return;
       }
       if (topic === "latency/probe") {
         try {
-          const probe = JSON.parse(payload.toString()) as {
-            id?: string;
-            circuit?: string;
-          };
+          const probe = JSON.parse(payload.toString()) as { id?: string; circuit?: string };
           if (!probe.id || !probe.circuit) return;
-          const ack = JSON.stringify({ id: probe.id, circuit: probe.circuit });
-          client.publish("latency/ack", ack);
+          client.publish("latency/ack", JSON.stringify({ id: probe.id, circuit: probe.circuit }));
         } catch (err) {
           console.warn("Invalid latency probe payload", payload.toString());
         }
@@ -104,7 +93,6 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
 
       const val = Number(payload.toString());
       if (Number.isFinite(val) || Number.isNaN(val)) {
-        console.log("Message received", topic, val);
         onMessage(topic, val);
       } else {
         console.warn("Invalid message payload on", topic, payload.toString());
@@ -113,7 +101,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
 
     return () => {
       console.log("Disconnecting MQTT client");
-      client.end(true); // force disconnect and clean
+      client.end(true);
     };
   }, [url, username, password, onMessage]);
 
