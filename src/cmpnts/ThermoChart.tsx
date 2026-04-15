@@ -6,6 +6,7 @@
 import React, { useState, useCallback } from "react";
 import {
   Chart as ChartJS,
+  CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
@@ -14,12 +15,14 @@ import {
   Filler,
   Tooltip,
   Legend,
+  Decimation,
   type ChartOptions,
   type ChartData,
 } from "chart.js";
 import { Chart } from "react-chartjs-2";
 
 ChartJS.register(
+  CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
@@ -27,7 +30,8 @@ ChartJS.register(
   LineController,
   Filler,
   Tooltip,
-  Legend
+  Legend,
+  Decimation
 );
 
 // ---------------------------------------------------------------------------
