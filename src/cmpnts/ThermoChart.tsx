@@ -225,19 +225,27 @@ export const ThermoChart: React.FC<Props> = ({
       ]
     : [];
 
+  // Axis bounds derived from sat table so the full dome is always visible
+  const phXMin = satTable ? Math.floor(Math.min(...satTable.map(r => r.h_liq)) - 20) : 140;
+  const phXMax = satTable ? Math.ceil( Math.max(...satTable.map(r => r.h_vap)) + 20) : 500;
+  const phYMax = satTable ? Math.ceil( Math.max(...satTable.map(r => r.P))    * 1.08) : 3800;
+
+  // Cycle point order follows the physical circuit:
+  //   Evaporator outlet → Compressor (HighSide) → Condenser/EXV inlet → LowSide → back
   const phLivePoints = () => {
     if (!statePoints) return [];
     return [
-      { label: "High side",  sp: statePoints.HighSide,   P_kPa: (sensors.highPressure.slice(-1)[0] ?? NaN) / 1000, color: PH_COLORS.high },
-      { label: "Low side",   sp: statePoints.LowSide,    P_kPa: (sensors.lowPressure.slice(-1)[0]  ?? NaN) / 1000, color: PH_COLORS.low  },
       { label: "Evaporator", sp: statePoints.Evaporator, P_kPa: (sensors.evapPressure.slice(-1)[0] ?? NaN) / 1000, color: PH_COLORS.evap },
+      { label: "High side",  sp: statePoints.HighSide,   P_kPa: (sensors.highPressure.slice(-1)[0] ?? NaN) / 1000, color: PH_COLORS.high },
       { label: "EXV",        sp: statePoints.EXV,        P_kPa: (sensors.expPressure.slice(-1)[0]  ?? NaN) / 1000, color: PH_COLORS.exv  },
+      { label: "Low side",   sp: statePoints.LowSide,    P_kPa: (sensors.lowPressure.slice(-1)[0]  ?? NaN) / 1000, color: PH_COLORS.low  },
     ].filter(pt => pt.sp.h !== null && !isNaN(pt.P_kPa));
   };
 
   const phData = useCallback((): ChartData<"scatter"> => {
     const live = phLivePoints();
-    const cycleData = live.length === 4
+    // Draw cycle path with however many valid points are available (≥2)
+    const cycleData = live.length >= 2
       ? [...live.map(p => ({ x: p.sp.h as number, y: p.P_kPa })), { x: live[0].sp.h as number, y: live[0].P_kPa }]
       : [];
     return {
@@ -256,12 +264,12 @@ export const ThermoChart: React.FC<Props> = ({
         {
           label: "Cycle path",
           data: cycleData as any,
-          borderColor: "rgba(200,200,200,0.3)",
+          borderColor: "rgba(200,200,200,0.5)",
           backgroundColor: "transparent",
           showLine: true,
           fill: false,
           pointRadius: 0,
-          borderWidth: 1.2,
+          borderWidth: 1.5,
           borderDash: [5, 3],
           order: 5,
         } as any,
@@ -294,8 +302,8 @@ export const ThermoChart: React.FC<Props> = ({
       },
     },
     scales: {
-      x: { title: { display: true, text: "Enthalpy (kJ/kg)", color: "#9ca3af" }, min: 140, max: 480, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
-      y: { title: { display: true, text: "Pressure (kPa)",   color: "#9ca3af" }, min: 40,  max: 2200, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+      x: { title: { display: true, text: "Enthalpy (kJ/kg)", color: "#9ca3af" }, min: phXMin, max: phXMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+      y: { title: { display: true, text: "Pressure (kPa)",   color: "#9ca3af" }, min: 40, max: phYMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
     },
   };
 
@@ -442,10 +450,17 @@ export const ThermoChart: React.FC<Props> = ({
         {mode === "pt"         && <Chart type="scatter" data={ptData()} options={ptOptions} />}
       </div>
 
-      {(mode === "ph" || mode === "pt") && satReady && (
+      {mode === "ph" && satReady && (
+        <div style={{ fontSize: "0.72rem", color: "#6b7280", lineHeight: 1.5 }}>
+          The dome shows where R-1234yf changes phase: left of dome = subcooled liquid, inside = two-phase mixture, right = superheated gas.
+          The dashed cycle path connects the four sensor points in circuit order (evaporator outlet → compressor → condenser → EXV → back).
+          {statePoints && " Enthalpies computed by CoolProp on the Pi."}
+        </div>
+      )}
+      {mode === "pt" && satReady && (
         <div style={{ fontSize: "0.72rem", color: "#6b7280" }}>
-          R-1234yf saturation curve computed by CoolProp on the Pi.
-          {statePoints && " State point enthalpies from CoolProp."}
+          Saturation curve shows the boiling/condensing pressure at each temperature.
+          Points on the curve are in two-phase; above it is subcooled liquid; below is superheated gas.
         </div>
       )}
     </div>
