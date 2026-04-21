@@ -178,7 +178,7 @@ export const ThermoChart: React.FC<Props> = ({
         if (b === "setpointData") return 1;
         return 0;
       })
-      .map((key, idx, arr) => {
+      .map((key) => {
         const entry = TS_KEYS.find(t => t.key === key)!;
         const raw: number[] = (sensors as any)[key] ?? [];
         const data = raw.map(v =>
