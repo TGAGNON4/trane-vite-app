@@ -217,36 +217,40 @@ export const ThermoChart: React.FC<Props> = ({
     },
   };
 
+  // Converts a kPa value to the display pressure unit
+  const kPaToDisplay = (kpa: number) => displayUnits === "metric" ? kpa : kpa / 6.89476;
+  const pMin = kPaToDisplay(40);
+
   // ── P-h diagram ──────────────────────────────────────────────────────────
   const dome = satTable
     ? [
-        ...satTable.map(r => ({ x: r.h_liq, y: r.P })),
-        ...[...satTable].reverse().map(r => ({ x: r.h_vap, y: r.P })),
+        ...satTable.map(r => ({ x: r.h_liq, y: kPaToDisplay(r.P) })),
+        ...[...satTable].reverse().map(r => ({ x: r.h_vap, y: kPaToDisplay(r.P) })),
       ]
     : [];
 
   // Axis bounds derived from sat table so the full dome is always visible
   const phXMin = satTable ? Math.floor(Math.min(...satTable.map(r => r.h_liq)) - 20) : 140;
   const phXMax = satTable ? Math.ceil( Math.max(...satTable.map(r => r.h_vap)) + 20) : 500;
-  const phYMax = satTable ? Math.ceil( Math.max(...satTable.map(r => r.P))    * 1.08) : 3800;
+  const phYMax = satTable ? Math.ceil( kPaToDisplay(Math.max(...satTable.map(r => r.P))) * 1.08) : kPaToDisplay(3800);
 
   // Cycle point order follows the physical circuit:
   //   Evaporator outlet → Compressor (HighSide) → Condenser/EXV inlet → LowSide → back
   const phLivePoints = () => {
     if (!statePoints) return [];
     return [
-      { label: "Evaporator", sp: statePoints.Evaporator, P_kPa: (sensors.evapPressure.slice(-1)[0] ?? NaN) / 1000, color: PH_COLORS.evap },
-      { label: "High side",  sp: statePoints.HighSide,   P_kPa: (sensors.highPressure.slice(-1)[0] ?? NaN) / 1000, color: PH_COLORS.high },
-      { label: "EXV",        sp: statePoints.EXV,        P_kPa: (sensors.expPressure.slice(-1)[0]  ?? NaN) / 1000, color: PH_COLORS.exv  },
-      { label: "Low side",   sp: statePoints.LowSide,    P_kPa: (sensors.lowPressure.slice(-1)[0]  ?? NaN) / 1000, color: PH_COLORS.low  },
-    ].filter(pt => pt.sp.h !== null && !isNaN(pt.P_kPa));
+      { label: "Evaporator", sp: statePoints.Evaporator, pDisplay: kPaToDisplay((sensors.evapPressure.slice(-1)[0] ?? NaN) / 1000), color: PH_COLORS.evap },
+      { label: "High side",  sp: statePoints.HighSide,   pDisplay: kPaToDisplay((sensors.highPressure.slice(-1)[0] ?? NaN) / 1000), color: PH_COLORS.high },
+      { label: "EXV",        sp: statePoints.EXV,        pDisplay: kPaToDisplay((sensors.expPressure.slice(-1)[0]  ?? NaN) / 1000), color: PH_COLORS.exv  },
+      { label: "Low side",   sp: statePoints.LowSide,    pDisplay: kPaToDisplay((sensors.lowPressure.slice(-1)[0]  ?? NaN) / 1000), color: PH_COLORS.low  },
+    ].filter(pt => pt.sp.h !== null && !isNaN(pt.pDisplay));
   };
 
   const phData = useCallback((): ChartData<"scatter"> => {
     const live = phLivePoints();
     // Draw cycle path with however many valid points are available (≥2)
     const cycleData = live.length >= 2
-      ? [...live.map(p => ({ x: p.sp.h as number, y: p.P_kPa })), { x: live[0].sp.h as number, y: live[0].P_kPa }]
+      ? [...live.map(p => ({ x: p.sp.h as number, y: p.pDisplay })), { x: live[0].sp.h as number, y: live[0].pDisplay }]
       : [];
     return {
       datasets: [
@@ -275,7 +279,7 @@ export const ThermoChart: React.FC<Props> = ({
         } as any,
         ...live.map(pt => ({
           label: pt.label,
-          data: [{ x: pt.sp.h as number, y: pt.P_kPa }] as any,
+          data: [{ x: pt.sp.h as number, y: pt.pDisplay }] as any,
           backgroundColor: pt.color,
           pointRadius: 7,
           pointHoverRadius: 9,
@@ -283,7 +287,7 @@ export const ThermoChart: React.FC<Props> = ({
         })),
       ],
     };
-  }, [sensors, statePoints, satTable]);
+  }, [sensors, statePoints, satTable, displayUnits]);
 
   const phOptions: ChartOptions<"scatter"> = {
     responsive: true,
@@ -296,19 +300,25 @@ export const ThermoChart: React.FC<Props> = ({
           label: ctx => {
             const lbl = ctx.dataset.label ?? "";
             if (lbl === "Saturation dome" || lbl === "Cycle path") return "";
-            return `${lbl}: h=${(ctx.parsed.x as number).toFixed(1)} kJ/kg, P=${(ctx.parsed.y as number).toFixed(0)} kPa`;
+            return `${lbl}: h=${(ctx.parsed.x as number).toFixed(1)} kJ/kg, P=${(ctx.parsed.y as number).toFixed(displayUnits === "metric" ? 0 : 2)} ${pressureUnit}`;
           },
         },
       },
     },
     scales: {
       x: { title: { display: true, text: "Enthalpy (kJ/kg)", color: "#9ca3af" }, min: phXMin, max: phXMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
-      y: { title: { display: true, text: "Pressure (kPa)",   color: "#9ca3af" }, min: 40, max: phYMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+      y: { title: { display: true, text: `Pressure (${pressureUnit})`, color: "#9ca3af" }, min: pMin, max: phYMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
     },
   };
 
   // ── P-T diagram ──────────────────────────────────────────────────────────
-  const satCurve = satTable ? satTable.map(r => ({ x: r.T, y: r.P })) : [];
+  const satCurve = satTable
+    ? satTable.map(r => ({ x: toDisplayTemp(r.T), y: kPaToDisplay(r.P) }))
+    : [];
+
+  const ptYMax = satTable ? Math.ceil(kPaToDisplay(Math.max(...satTable.map(r => r.P))) * 1.08) : kPaToDisplay(2400);
+  const ptXMin = toDisplayTemp(-45);
+  const ptXMax = toDisplayTemp(100);
 
   const ptData = useCallback((): ChartData<"scatter"> => {
     const pts = [
@@ -336,7 +346,7 @@ export const ThermoChart: React.FC<Props> = ({
           const valid = T !== undefined && P !== undefined && !isNaN(T) && !isNaN(P);
           return {
             label: pt.label,
-            data: valid ? [{ x: T, y: P / 1000 }] as any : [],
+            data: valid ? [{ x: toDisplayTemp(T), y: kPaToDisplay(P / 1000) }] as any : [],
             backgroundColor: pt.color,
             pointRadius: 7,
             pointHoverRadius: 9,
@@ -345,7 +355,7 @@ export const ThermoChart: React.FC<Props> = ({
         }),
       ],
     };
-  }, [sensors, satTable]);
+  }, [sensors, satTable, displayUnits]);
 
   const ptOptions: ChartOptions<"scatter"> = {
     responsive: true,
@@ -357,14 +367,14 @@ export const ThermoChart: React.FC<Props> = ({
         callbacks: {
           label: ctx => {
             if (ctx.dataset.label === "Saturation curve") return "";
-            return `${ctx.dataset.label}: T=${(ctx.parsed.x as number).toFixed(1)}°C, P=${(ctx.parsed.y as number).toFixed(0)} kPa`;
+            return `${ctx.dataset.label}: T=${(ctx.parsed.x as number).toFixed(1)}${temperatureUnit}, P=${(ctx.parsed.y as number).toFixed(displayUnits === "metric" ? 0 : 2)} ${pressureUnit}`;
           },
         },
       },
     },
     scales: {
-      x: { title: { display: true, text: "Temperature (°C)", color: "#9ca3af" }, min: -45, max: 100, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
-      y: { title: { display: true, text: "Pressure (kPa)",   color: "#9ca3af" }, min: 40,  max: 2200, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+      x: { title: { display: true, text: `Temperature (${temperatureUnit})`, color: "#9ca3af" }, min: ptXMin, max: ptXMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+      y: { title: { display: true, text: `Pressure (${pressureUnit})`,       color: "#9ca3af" }, min: pMin,   max: ptYMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
     },
   };
 
