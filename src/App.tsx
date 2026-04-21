@@ -112,6 +112,10 @@ export default function App() {
     Circuit1: null,
     Circuit2: null
   });
+  const [shutdownStatus, setShutdownStatus] = useState<Record<CircuitKey, string | null>>({
+    Circuit1: null,
+    Circuit2: null,
+  });
 
   // CoolProp-derived thermodynamic data published by the Pi
   const [satTable, setSatTable] = useState<Record<CircuitKey, SatRow[] | null>>({
@@ -339,6 +343,13 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
+    if (name === "Compressor_Shutdown_Status") {
+      const circuit = topic.split("/")[1] as CircuitKey;
+      if (circuits.includes(circuit)) {
+        setShutdownStatus(prev => ({ ...prev, [circuit]: payload }));
+      }
+      return;
+    }
     // CoolProp saturation table — published once on Pi startup, retained
     if (name === "R1234yf_Saturation_Table") {
       try {
@@ -458,6 +469,13 @@ export default function App() {
     if (clientRef.current?.connected) {
       clientRef.current.publish(`${circuit}/Compressor_RPM`, "", { retain: true });
     }
+  };
+
+  const requestShutdown = (circuit: CircuitKey) => {
+    if (!clientRef.current?.connected) return;
+    if (!window.confirm(`Shut down compressor for ${circuit}? It will ramp to minimum RPM.`)) return;
+    clientRef.current.publish(`Data/${circuit}/Compressor_Shutdown`, "1");
+    setShutdownStatus(prev => ({ ...prev, [circuit]: "requested" }));
   };
 
   const toDisplayTemp = (c: number) => displayUnits === "metric" ? c : (c * 9 / 5) + 32;
@@ -616,6 +634,20 @@ export default function App() {
                 />
                 <button className="btn" onClick={() => { const v = rpmInput[activeCircuit]; if (v !== "") applyRpmOverride(activeCircuit, v as number); }}>Set</button>
                 <button className="btn" onClick={() => clearRpmOverride(activeCircuit)}>Clear</button>
+              </div>
+              <div className="control-row" style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+                <button
+                  className="btn"
+                  style={{ background: "#dc2626", borderColor: "#dc2626", color: "#fff" }}
+                  onClick={() => requestShutdown(activeCircuit)}
+                >
+                  Shutdown Compressor
+                </button>
+                {shutdownStatus[activeCircuit] && (
+                  <span style={{ fontSize: "0.85rem", color: "#f59e0b" }}>
+                    {shutdownStatus[activeCircuit]}
+                  </span>
+                )}
               </div>
             </div>
 

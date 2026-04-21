@@ -23,6 +23,7 @@ const DATA_TOPICS = [
   "Select_Range_Status",
   "Setpoint_Record",
   "Compressor_RPM",
+  "Compressor_Shutdown_Status",
   // CoolProp thermodynamic data published by the Pi
   "R1234yf_Saturation_Table",
   "R1234yf_State_Points",
