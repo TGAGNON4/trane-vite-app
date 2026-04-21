@@ -104,6 +104,10 @@ export default function App() {
     Circuit1: null,
     Circuit2: null
   });
+  const [currentRpm, setCurrentRpm] = useState<Record<CircuitKey, number | null>>({
+    Circuit1: null,
+    Circuit2: null
+  });
   const [rpmInput, setRpmInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: "",
     Circuit2: ""
@@ -235,6 +239,11 @@ export default function App() {
 
     if (topicPart === "HMI_Status") {
       setHmiConnected(prev => ({ ...prev, [circuit]: val === 1 }));
+      return;
+    }
+
+    if (topicPart === "Compressor_Current_RPM") {
+      setCurrentRpm(prev => ({ ...prev, [circuit]: Number.isFinite(val) ? val : null }));
       return;
     }
 
@@ -621,8 +630,11 @@ export default function App() {
 
             <div className="card">
               <div>Compressor RPM Override</div>
-              <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: rpmOverride[activeCircuit] !== null ? "var(--accent)" : "inherit" }}>
-                {rpmOverride[activeCircuit] !== null ? `Active: ${rpmOverride[activeCircuit]} RPM` : "No override active"}
+              <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "#e5e7eb" }}>
+                Current: {currentRpm[activeCircuit] !== null ? `${currentRpm[activeCircuit]} RPM` : "--"}
+              </div>
+              <div style={{ marginTop: "0.1rem", fontSize: "0.85rem", color: rpmOverride[activeCircuit] !== null ? "var(--accent)" : "#6b7280" }}>
+                {rpmOverride[activeCircuit] !== null ? `Override active: ${rpmOverride[activeCircuit]} RPM` : "No override active"}
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <input

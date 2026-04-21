@@ -150,7 +150,7 @@ export const ThermoChart: React.FC<Props> = ({
 }) => {
   const [mode, setMode] = useState<Mode>("timeseries");
   const [selectedKeys, setSelectedKeys] = useState<Set<TsKey>>(
-    new Set(["highTemp", "lowTemp"] as TsKey[])
+    new Set(["dischargeTemp", "setpointData"] as TsKey[])
   );
 
   const toDisplayTemp = (c: number) =>
@@ -164,23 +164,49 @@ export const ThermoChart: React.FC<Props> = ({
     const formattedLabels = sensors.labels.map(ts =>
       new Date(ts).toLocaleTimeString()
     );
-    const datasets = Array.from(selectedKeys).map(key => {
-      const entry = TS_KEYS.find(t => t.key === key)!;
-      const raw: number[] = (sensors as any)[key] ?? [];
-      const data = raw.map(v =>
-        entry.isPressure ? toDisplayPressure(v) : toDisplayTemp(v)
-      );
-      return {
-        label: entry.label,
-        data,
-        borderColor: COLORS[key],
-        backgroundColor: COLORS[key] + "33",
-        borderDash: entry.isPressure ? ([6, 3] as number[]) : ([] as number[]),
-        tension: 0.3,
-        pointRadius: 0,
-        yAxisID: entry.isPressure ? "yPres" : "yTemp",
-      };
-    });
+
+    const showControlPair =
+      selectedKeys.has("dischargeTemp") && selectedKeys.has("setpointData");
+
+    const datasets = Array.from(selectedKeys)
+      // When showing the control pair, render dischargeTemp first so fill '+1' targets setpoint
+      .sort((a, b) => {
+        if (!showControlPair) return 0;
+        if (a === "dischargeTemp") return -1;
+        if (b === "dischargeTemp") return 1;
+        if (a === "setpointData") return -1;
+        if (b === "setpointData") return 1;
+        return 0;
+      })
+      .map((key, idx, arr) => {
+        const entry = TS_KEYS.find(t => t.key === key)!;
+        const raw: number[] = (sensors as any)[key] ?? [];
+        const data = raw.map(v =>
+          entry.isPressure ? toDisplayPressure(v) : toDisplayTemp(v)
+        );
+
+        // discharge temp: fill toward setpoint line (next dataset when sorted)
+        const isDischarge = showControlPair && key === "dischargeTemp";
+        const isSetpoint  = showControlPair && key === "setpointData";
+
+        return {
+          label: isSetpoint ? "Setpoint (target)" : entry.label,
+          data,
+          borderColor: COLORS[key],
+          backgroundColor: COLORS[key] + "33",
+          borderDash: (entry.isPressure || isSetpoint) ? ([6, 3] as number[]) : ([] as number[]),
+          borderWidth: isSetpoint ? 1.5 : 2,
+          tension: 0.3,
+          pointRadius: 0,
+          yAxisID: entry.isPressure ? "yPres" : "yTemp",
+          // fill the gap between discharge temp and the setpoint line
+          ...(isDischarge ? {
+            fill: { target: "+1", above: "rgba(224,90,43,0.18)", below: "rgba(50,120,216,0.18)" },
+          } : {}),
+          order: isSetpoint ? 2 : 1,
+        };
+      });
+
     return { labels: formattedLabels, datasets };
   }, [sensors, selectedKeys, displayUnits]);
 
@@ -379,11 +405,22 @@ export const ThermoChart: React.FC<Props> = ({
   };
 
   // ── Series toggle ─────────────────────────────────────────────────────────
+  const CONTROL_PAIR = new Set<TsKey>(["dischargeTemp", "setpointData"]);
+
   const toggleKey = (key: TsKey) => {
     setSelectedKeys(prev => {
       const next = new Set(prev);
-      if (next.has(key)) { if (next.size > 1) next.delete(key); }
-      else next.add(key);
+      if (next.has(key)) {
+        if (next.size > 1) {
+          next.delete(key);
+          // keep the pair together
+          if (CONTROL_PAIR.has(key)) CONTROL_PAIR.forEach(k => next.delete(k));
+        }
+      } else {
+        next.add(key);
+        // keep the pair together
+        if (CONTROL_PAIR.has(key)) CONTROL_PAIR.forEach(k => next.add(k));
+      }
       return next;
     });
   };
