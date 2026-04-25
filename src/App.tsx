@@ -100,6 +100,8 @@ export default function App() {
     () => new Set<string>(["High Side"])
   );
   const [displayUnits, setDisplayUnits] = useState<"metric" | "imperial">("metric");
+  const displayUnitsRef = useRef<"metric" | "imperial">("metric");
+  displayUnitsRef.current = displayUnits;
   const [rpmOverride, setRpmOverride] = useState<Record<CircuitKey, number | null>>({
     Circuit1: null,
     Circuit2: null
@@ -163,6 +165,20 @@ export default function App() {
     setTimeRange("");
     requestDates();
   }, [activeCircuit]);
+
+  useEffect(() => {
+    setTempSetpointInput(
+      Object.fromEntries(
+        circuits.map(c => [
+          c,
+          parseFloat((displayUnits === "imperial"
+            ? latestSetpointRef.current[c] * 9 / 5 + 32
+            : latestSetpointRef.current[c]
+          ).toFixed(2))
+        ])
+      ) as Record<CircuitKey, number | "">
+    );
+  }, [displayUnits]);
 
   // -----------------
   // Derived UI values
@@ -290,7 +306,9 @@ export default function App() {
           latestSetpointRef.current[circuit] = value;
           setTempSetpointInput(prevInput => {
             if (isEditingSetpointRef.current[circuit]) return prevInput;
-            return { ...prevInput, [circuit]: value };
+            const u = displayUnitsRef.current;
+            const displayed = parseFloat((u === "imperial" ? value * 9 / 5 + 32 : value).toFixed(2));
+            return { ...prevInput, [circuit]: displayed };
           });
           break;
       }
@@ -396,12 +414,13 @@ export default function App() {
   // UI actions
   // -----------------
   const updateSetpoint = (circuit: CircuitKey, sp: number) => {
-    setSetpoint(prev => ({ ...prev, [circuit]: sp }));
-    latestSetpointRef.current[circuit] = sp;
-    updateSetpointLine(circuit, sp);
+    const spC = displayUnits === "imperial" ? (sp - 32) * 5 / 9 : sp;
+    setSetpoint(prev => ({ ...prev, [circuit]: spC }));
+    latestSetpointRef.current[circuit] = spC;
+    updateSetpointLine(circuit, spC);
     if (clientRef.current?.connected) {
-      clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, sp.toString(), { retain: true });
-      clientRef.current.publish(`Data/${circuit}/Setpoint_Record`, `${sp}`);
+      clientRef.current.publish(`${circuit}/Space_Setpoint_Temperature`, spC.toString(), { retain: true });
+      clientRef.current.publish(`Data/${circuit}/Setpoint_Record`, `${spC}`);
     }
   };
 
@@ -468,7 +487,7 @@ export default function App() {
   };
 
   const applyRpmOverride = (circuit: CircuitKey, rpm: number) => {
-    const clamped = Math.max(0, Math.min(4000, rpm));
+    const clamped = Math.max(2250, Math.min(4500, rpm));
     if (clientRef.current?.connected) {
       clientRef.current.publish(`${circuit}/Compressor_RPM`, `${clamped}`, { retain: true });
     }
@@ -638,7 +657,7 @@ export default function App() {
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <input
-                  type="number" step="100" min="0" max="4000" placeholder="RPM (0–4000)"
+                  type="number" step="100" min="2250" max="4500" placeholder="RPM (2250–4500)"
                   value={rpmInput[activeCircuit]}
                   onChange={e => setRpmInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
                   onKeyDown={e => { const v = rpmInput[activeCircuit]; if (e.key === "Enter" && v !== "") applyRpmOverride(activeCircuit, v as number); }}
