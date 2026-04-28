@@ -16,12 +16,13 @@ const SENSOR_TOPICS = [
   "HMI_Status"
 ];
 // Circuit-level topics that carry text payloads (not numeric sensor data)
-const CIRCUIT_TEXT_TOPICS = ["Status"];
+const CIRCUIT_TEXT_TOPICS = ["Status", "Unit"];
 const DATA_TOPICS = [
   "Available_Dates",
   "Available_Time_Ranges",
   "Temperature_Download",
   "Pressure_Download",
+  "Setpoint_Download",
   "Select_Time_Status",
   "Select_Range_Status",
   "Setpoint_Record",

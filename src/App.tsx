@@ -305,16 +305,18 @@ export default function App() {
           });
           saveToStorage(storageKey(circuit, "dischargeTemp"), c.dischargeTemp);
           break;
-        case "Space_Setpoint_Temperature":
-          setSetpoint(prevSet => ({ ...prevSet, [circuit]: value }));
-          latestSetpointRef.current[circuit] = value;
+        case "Space_Setpoint_Temperature": {
+          const spRounded = parseFloat(value.toFixed(2));
+          setSetpoint(prevSet => ({ ...prevSet, [circuit]: spRounded }));
+          latestSetpointRef.current[circuit] = spRounded;
           setTempSetpointInput(prevInput => {
             if (isEditingSetpointRef.current[circuit]) return prevInput;
             const u = displayUnitsRef.current;
-            const displayed = parseFloat((u === "imperial" ? value * 9 / 5 + 32 : value).toFixed(2));
+            const displayed = parseFloat((u === "imperial" ? spRounded * 9 / 5 + 32 : spRounded).toFixed(2));
             return { ...prevInput, [circuit]: displayed };
           });
           break;
+        }
       }
       return next;
     });
@@ -374,6 +376,19 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
+    if (name === "Setpoint_Download") {
+      if (!payload) return;
+      const parsed = extractPayload(payload);
+      const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
+      const blob = new Blob([parsed.body], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `setpoints_${dateStr}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
     if (name === "Compressor_Shutdown_Status") {
       const circuit = topic.split("/")[1] as CircuitKey;
       if (circuits.includes(circuit)) {
@@ -387,6 +402,13 @@ export default function App() {
       if (circuits.includes(circuit)) {
         setCircuitStatus(prev => ({ ...prev, [circuit]: payload }));
       }
+      return;
+    }
+    // Unit sync from HMI: {CIRCUIT}/Unit → "C" | "F"
+    if (topic.endsWith("/Unit") && !topic.startsWith("Data/")) {
+      const unit = payload.trim();
+      if (unit === "F") setDisplayUnits("imperial");
+      else if (unit === "C") setDisplayUnits("metric");
       return;
     }
     // CoolProp saturation table — published once on Pi startup, retained
@@ -461,6 +483,14 @@ export default function App() {
     lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
       clientRef.current.publish(`Data/${activeCircuit}/Pressure_Download_Request`, dateStr);
+    }
+  };
+
+  const requestSetpointDownload = () => {
+    const dateStr = selectedDate || availableDates[0] || todayStr();
+    lastDownloadDateRef.current = dateStr;
+    if (clientRef.current?.connected) {
+      clientRef.current.publish(`Data/${activeCircuit}/Setpoint_Download_Request`, dateStr);
     }
   };
 
@@ -554,7 +584,14 @@ export default function App() {
             <div>MQTT sensor data</div>
             <button
               className="btn"
-              onClick={() => setDisplayUnits(prev => prev === "metric" ? "imperial" : "metric")}
+              onClick={() => {
+                const next = displayUnits === "metric" ? "imperial" : "metric";
+                setDisplayUnits(next);
+                const mqttUnit = next === "imperial" ? "F" : "C";
+                if (clientRef.current?.connected) {
+                  circuits.forEach(c => clientRef.current!.publish(`Data/${c}/Unit_Change`, mqttUnit));
+                }
+              }}
             >
               {displayUnits === "metric" ? "Show Imperial" : "Show Metric"}
             </button>
@@ -748,6 +785,7 @@ export default function App() {
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={requestDownload}>Download Temperatures</button>
                 <button className="btn" onClick={requestPressureDownload}>Download Pressures</button>
+                <button className="btn" onClick={requestSetpointDownload}>Download Setpoints</button>
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={showLive}>Live data</button>
