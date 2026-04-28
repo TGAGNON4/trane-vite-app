@@ -15,6 +15,8 @@ const SENSOR_TOPICS = [
   "Compressor_Current_RPM",
   "HMI_Status"
 ];
+// Circuit-level topics that carry text payloads (not numeric sensor data)
+const CIRCUIT_TEXT_TOPICS = ["Status"];
 const DATA_TOPICS = [
   "Available_Dates",
   "Available_Time_Ranges",
@@ -64,6 +66,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
       topics.push("latency/probe");
       CIRCUITS.forEach(circuit => {
         DATA_TOPICS.forEach(t => topics.push(`Data/${circuit}/${t}`));
+        CIRCUIT_TEXT_TOPICS.forEach(t => topics.push(`${circuit}/${t}`));
       });
 
       topics.forEach(t => {
@@ -87,8 +90,8 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
     });
 
     client.on("message", (topic: string, payload: Buffer) => {
-      // App data is text; sensor data is numbers.
-      if (topic.startsWith("Data/")) {
+      // App data and circuit-level text topics are text; sensor data is numbers.
+      if (topic.startsWith("Data/") || CIRCUITS.some(c => CIRCUIT_TEXT_TOPICS.some(t => topic === `${c}/${t}`))) {
         onTextMessage?.(topic, payload.toString());
         return;
       }

@@ -122,6 +122,10 @@ export default function App() {
     Circuit1: null,
     Circuit2: null,
   });
+  const [circuitStatus, setCircuitStatus] = useState<Record<CircuitKey, string | null>>({
+    Circuit1: null,
+    Circuit2: null,
+  });
 
   // CoolProp-derived thermodynamic data published by the Pi
   const [satTable, setSatTable] = useState<Record<CircuitKey, SatRow[] | null>>({
@@ -377,6 +381,14 @@ export default function App() {
       }
       return;
     }
+    // Circuit-level status: {CIRCUIT}/Status → "Starting" | "Running" | "Shutting Down"
+    if (topic.endsWith("/Status") && !topic.startsWith("Data/")) {
+      const circuit = topic.split("/")[0] as CircuitKey;
+      if (circuits.includes(circuit)) {
+        setCircuitStatus(prev => ({ ...prev, [circuit]: payload }));
+      }
+      return;
+    }
     // CoolProp saturation table — published once on Pi startup, retained
     if (name === "R1234yf_Saturation_Table") {
       try {
@@ -504,6 +516,11 @@ export default function App() {
     if (!window.confirm(`Shut down compressor for ${circuit}? It will ramp to minimum RPM.`)) return;
     clientRef.current.publish(`Data/${circuit}/Compressor_Shutdown`, "1");
     setShutdownStatus(prev => ({ ...prev, [circuit]: "requested" }));
+  };
+
+  const requestStart = (circuit: CircuitKey) => {
+    if (!clientRef.current?.connected) return;
+    clientRef.current.publish(`Data/${circuit}/Compressor_Start`, "1");
   };
 
   const toDisplayTemp = (c: number) => displayUnits === "metric" ? c : (c * 9 / 5) + 32;
@@ -666,19 +683,39 @@ export default function App() {
                 <button className="btn" onClick={() => { const v = rpmInput[activeCircuit]; if (v !== "") applyRpmOverride(activeCircuit, v as number); }}>Set</button>
                 <button className="btn" onClick={() => clearRpmOverride(activeCircuit)}>Clear</button>
               </div>
-              <div className="control-row" style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
-                <button
-                  className="btn"
-                  style={{ background: "#dc2626", borderColor: "#dc2626", color: "#fff" }}
-                  onClick={() => requestShutdown(activeCircuit)}
-                >
-                  Shutdown Compressor
-                </button>
-                {shutdownStatus[activeCircuit] && (
-                  <span style={{ fontSize: "0.85rem", color: "#f59e0b" }}>
-                    {shutdownStatus[activeCircuit]}
+              <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+                <div className="control-row">
+                  <button
+                    className="btn"
+                    style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff" }}
+                    onClick={() => requestStart(activeCircuit)}
+                  >
+                    Start Compressor
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ background: "#dc2626", borderColor: "#dc2626", color: "#fff" }}
+                    onClick={() => requestShutdown(activeCircuit)}
+                  >
+                    Shutdown Compressor
+                  </button>
+                </div>
+                <div style={{ marginTop: "0.4rem", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{
+                    color:
+                      circuitStatus[activeCircuit] === "Running" ? "#4ade80" :
+                      circuitStatus[activeCircuit] === "Starting" ? "#facc15" :
+                      circuitStatus[activeCircuit] === "Shutting Down" ? "#f87171" :
+                      "#6b7280"
+                  }}>
+                    {circuitStatus[activeCircuit] ?? "Unknown"}
                   </span>
-                )}
+                  {shutdownStatus[activeCircuit] && (
+                    <span style={{ color: "#f59e0b" }}>
+                      — {shutdownStatus[activeCircuit]}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
