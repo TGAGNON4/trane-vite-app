@@ -93,6 +93,15 @@ type Props = {
 
 type Mode = "timeseries" | "ph" | "pt";
 
+const MODE_HELP: Record<Mode, string> = {
+  timeseries:
+    "Live sensor readings over time. Solid lines are temperatures (left axis); dashed lines are pressures (right axis). Toggle which series to show with the buttons above the chart. The setpoint line is the target space temperature; the shaded band shows how far the discharge air is from it.",
+  ph:
+    "Pressure vs Enthalpy diagram for R-1234yf. The blue dome shows where the refrigerant changes phase: left of dome = subcooled liquid, inside = two-phase mixture, right = superheated gas. The 4 colored dots are your live sensor states placed by enthalpy (kJ/kg) and pressure; the dashed line connects them in circuit order (Evaporator → High side → EXV → Low side). A healthy cycle shows compression (vertical rise on the right), condensation (move left across the top), expansion (vertical drop), evaporation (move right across the bottom). Enthalpy is computed by CoolProp on the Pi from each sensor's (T, P).",
+  pt:
+    "Pressure vs Temperature for R-1234yf. The curve is the saturation line — the boiling/condensing pressure at each temperature. A point sitting on the curve means the refrigerant is two-phase at that sensor; above the curve = subcooled liquid; below = superheated gas. Most sensors are in single-phase sections (suction, liquid, discharge lines), so they sit off the curve by design.",
+};
+
 const TS_KEYS = [
   { key: "highTemp",      label: "High side temp",      isPressure: false },
   { key: "expTemp",       label: "EXV temp",            isPressure: false },
@@ -152,6 +161,7 @@ export const ThermoChart: React.FC<Props> = ({
   const [selectedKeys, setSelectedKeys] = useState<Set<TsKey>>(
     new Set(["dischargeTemp", "setpointData"] as TsKey[])
   );
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const toDisplayTemp = (c: number) =>
     displayUnits === "metric" ? c : c * 9 / 5 + 32;
@@ -430,7 +440,7 @@ export const ThermoChart: React.FC<Props> = ({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-      <div className="tab-row">
+      <div className="tab-row" style={{ alignItems: "center" }}>
         {(["timeseries", "ph", "pt"] as Mode[]).map(m => (
           <button
             key={m}
@@ -441,6 +451,62 @@ export const ThermoChart: React.FC<Props> = ({
             {m === "timeseries" ? "Time-series" : m === "ph" ? "P-h diagram" : "P vs T"}
           </button>
         ))}
+        <span
+          tabIndex={0}
+          aria-label={`About this chart: ${MODE_HELP[mode]}`}
+          onMouseEnter={() => setHelpOpen(true)}
+          onMouseLeave={() => setHelpOpen(false)}
+          onFocus={() => setHelpOpen(true)}
+          onBlur={() => setHelpOpen(false)}
+          onClick={() => setHelpOpen(v => !v)}
+          style={{
+            position: "relative",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "1.25rem",
+            height: "1.25rem",
+            borderRadius: "50%",
+            border: "1px solid #6b7280",
+            color: "#9ca3af",
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            cursor: "help",
+            marginLeft: "0.25rem",
+            userSelect: "none",
+          }}
+        >
+          ?
+          {helpOpen && (
+            <span
+              role="tooltip"
+              style={{
+                position: "absolute",
+                top: "calc(100% + 0.4rem)",
+                left: 0,
+                zIndex: 20,
+                width: "min(420px, 80vw)",
+                padding: "0.6rem 0.75rem",
+                background: "#0f172a",
+                color: "#e5e7eb",
+                border: "1px solid #374151",
+                borderRadius: "0.4rem",
+                fontSize: "0.78rem",
+                fontWeight: 400,
+                lineHeight: 1.5,
+                boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
+                whiteSpace: "normal",
+                textAlign: "left",
+                cursor: "default",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: "0.3rem", color: "#f3f4f6" }}>
+                {mode === "timeseries" ? "Time-series" : mode === "ph" ? "P-h diagram" : "P vs T diagram"}
+              </div>
+              {MODE_HELP[mode]}
+            </span>
+          )}
+        </span>
       </div>
 
       {mode === "timeseries" && (
