@@ -5,6 +5,7 @@ import { SensorCard } from "./cmpnts/SensorCard";
 import { ThermoChart, type ThermoSensors, type SatRow, type StatePoints } from "./cmpnts/ThermoChart";
 import { useMqtt } from "./hooks/MQTT";
 import { pushRolling, saveToStorage, loadFromStorage } from "./utils/array_help";
+import { RPM_MIN, RPM_MAX } from "./utils/app_helpers";
 
 // -----------------
 // Types and helpers
@@ -529,7 +530,7 @@ export default function App() {
   };
 
   const applyRpmOverride = (circuit: CircuitKey, rpm: number) => {
-    const clamped = Math.max(2250, Math.min(4500, rpm));
+    const clamped = Math.max(RPM_MIN, Math.min(RPM_MAX, rpm));
     if (clientRef.current?.connected) {
       clientRef.current.publish(`${circuit}/Compressor_RPM`, `${clamped}`, { retain: true });
     }
@@ -711,7 +712,7 @@ export default function App() {
               </div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <input
-                  type="number" step="100" min="2250" max="4500" placeholder="RPM (2250–4500)"
+                  type="number" step="100" min={RPM_MIN} max={RPM_MAX} placeholder="RPM"
                   value={rpmInput[activeCircuit]}
                   onChange={e => setRpmInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
                   onKeyDown={e => { const v = rpmInput[activeCircuit]; if (e.key === "Enter" && v !== "") applyRpmOverride(activeCircuit, v as number); }}
