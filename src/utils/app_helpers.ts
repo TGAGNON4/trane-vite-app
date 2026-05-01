@@ -50,7 +50,7 @@ export const pickCircuitFromHash = () => {
 export const INPUT_UNITS: "imperial" | "metric" = "metric";
 export const toMetricTemp = (f: number) => (f - 32) * 5 / 9;
 export const toMetricPressure = (psi: number) => psi * 6894.757;
-export const SETPOINT_MIN_C = -12;
+export const SETPOINT_MIN_C = 22;
 export const SETPOINT_MAX_C = 32;
-export const RPM_MIN = 2300;
+export const RPM_MIN = 2000;
 export const RPM_MAX = 4600;
