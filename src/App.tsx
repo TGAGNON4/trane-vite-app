@@ -119,14 +119,6 @@ export default function App() {
     Circuit1: null,
     Circuit2: null
   });
-  const [shutdownStatus, setShutdownStatus] = useState<Record<CircuitKey, string | null>>({
-    Circuit1: null,
-    Circuit2: null,
-  });
-  const [circuitStatus, setCircuitStatus] = useState<Record<CircuitKey, string | null>>({
-    Circuit1: null,
-    Circuit2: null,
-  });
 
   // CoolProp-derived thermodynamic data published by the Pi
   const [satTable, setSatTable] = useState<Record<CircuitKey, SatRow[] | null>>({
@@ -390,21 +382,6 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
-    if (name === "Compressor_Shutdown_Status") {
-      const circuit = topic.split("/")[1] as CircuitKey;
-      if (circuits.includes(circuit)) {
-        setShutdownStatus(prev => ({ ...prev, [circuit]: payload }));
-      }
-      return;
-    }
-    // Circuit-level status: {CIRCUIT}/Status → "Starting" | "Running" | "Shutting Down"
-    if (topic.endsWith("/Status") && !topic.startsWith("Data/")) {
-      const circuit = topic.split("/")[0] as CircuitKey;
-      if (circuits.includes(circuit)) {
-        setCircuitStatus(prev => ({ ...prev, [circuit]: payload }));
-      }
-      return;
-    }
     // Unit sync from HMI: {CIRCUIT}/Unit → "C" | "F"
     if (topic.endsWith("/Unit") && !topic.startsWith("Data/")) {
       const unit = payload.trim();
@@ -546,7 +523,6 @@ export default function App() {
     if (!clientRef.current?.connected) return;
     if (!window.confirm(`Shut down compressor for ${circuit}? It will ramp to minimum RPM.`)) return;
     clientRef.current.publish(`Data/${circuit}/Compressor_Shutdown`, "1");
-    setShutdownStatus(prev => ({ ...prev, [circuit]: "requested" }));
   };
 
   const requestStart = (circuit: CircuitKey) => {
@@ -737,22 +713,6 @@ export default function App() {
                   >
                     Shutdown Compressor
                   </button>
-                </div>
-                <div style={{ marginTop: "0.4rem", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span style={{
-                    color:
-                      circuitStatus[activeCircuit] === "Running" ? "#4ade80" :
-                      circuitStatus[activeCircuit] === "Starting" ? "#facc15" :
-                      circuitStatus[activeCircuit] === "Shutting Down" ? "#f87171" :
-                      "#6b7280"
-                  }}>
-                    {circuitStatus[activeCircuit] ?? "Unknown"}
-                  </span>
-                  {shutdownStatus[activeCircuit] && (
-                    <span style={{ color: "#f59e0b" }}>
-                      — {shutdownStatus[activeCircuit]}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
