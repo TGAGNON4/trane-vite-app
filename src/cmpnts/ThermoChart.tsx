@@ -8,6 +8,7 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  LogarithmicScale,
   PointElement,
   LineElement,
   ScatterController,
@@ -24,6 +25,7 @@ import { Chart } from "react-chartjs-2";
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  LogarithmicScale,
   PointElement,
   LineElement,
   ScatterController,
@@ -97,7 +99,7 @@ const MODE_HELP: Record<Mode, string> = {
   timeseries:
     "Live sensor readings over time. Solid lines are temperatures (left axis); dashed lines are pressures (right axis). Toggle which series to show with the buttons above the chart. The setpoint line is the target space temperature; the shaded band shows how far the discharge air is from it.",
   ph:
-    "Pressure vs Enthalpy diagram for R-1234yf. The blue dome shows where the refrigerant changes phase: left of dome = subcooled liquid, inside = two-phase mixture, right = superheated gas. The 4 colored dots are your live sensor states placed by enthalpy (kJ/kg) and pressure; the dashed line connects them in circuit order (Evaporator → High side → EXV → Low side). A healthy cycle shows compression (vertical rise on the right), condensation (move left across the top), expansion (vertical drop), evaporation (move right across the bottom). Enthalpy is computed by CoolProp on the Pi from each sensor's (T, P).",
+    "Log-scale Pressure vs Enthalpy diagram for R-1234yf. The pressure axis is logarithmic — standard for refrigeration engineering — so both high and low side points are visible even with a large pressure ratio. The blue dome shows where the refrigerant changes phase: left = subcooled liquid, inside = two-phase mixture, right = superheated gas. A healthy cycle shows near-vertical compression (right side), horizontal condensation (top), vertical expansion drop, and horizontal evaporation (bottom). Enthalpies computed by CoolProp on the Pi.",
   pt:
     "Pressure vs Temperature for R-1234yf. The curve is the saturation line — the boiling/condensing pressure at each temperature. A point sitting on the curve means the refrigerant is two-phase at that sensor; above the curve = subcooled liquid; below = superheated gas. Most sensors are in single-phase sections (suction, liquid, discharge lines), so they sit off the curve by design.",
 };
@@ -255,7 +257,7 @@ export const ThermoChart: React.FC<Props> = ({
 
   // Converts a kPa value to the display pressure unit
   const kPaToDisplay = (kpa: number) => displayUnits === "metric" ? kpa : kpa / 6.89476;
-  const pMin = kPaToDisplay(40);
+  const phYMin = kPaToDisplay(14);  // ~2 PSI — low enough to show near-vacuum suction
 
   // ── P-h diagram ──────────────────────────────────────────────────────────
   const dome = satTable
@@ -343,7 +345,7 @@ export const ThermoChart: React.FC<Props> = ({
     },
     scales: {
       x: { title: { display: true, text: "Enthalpy (kJ/kg)", color: "#9ca3af" }, min: phXMin, max: phXMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
-      y: { title: { display: true, text: `Pressure (${pressureUnit})`, color: "#9ca3af" }, min: pMin, max: phYMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+      y: { type: "logarithmic", title: { display: true, text: `Pressure (${pressureUnit})`, color: "#9ca3af" }, min: phYMin, max: phYMax, ticks: { color: "#9ca3af", callback: (v: any) => Number(v.toFixed(1)) }, grid: { color: "#1f2937" } },
     },
   };
 
@@ -410,7 +412,7 @@ export const ThermoChart: React.FC<Props> = ({
     },
     scales: {
       x: { title: { display: true, text: `Temperature (${temperatureUnit})`, color: "#9ca3af" }, min: ptXMin, max: ptXMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
-      y: { title: { display: true, text: `Pressure (${pressureUnit})`,       color: "#9ca3af" }, min: pMin,   max: ptYMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
+      y: { title: { display: true, text: `Pressure (${pressureUnit})`,       color: "#9ca3af" }, min: phYMin, max: ptYMax, ticks: { color: "#9ca3af" }, grid: { color: "#1f2937" } },
     },
   };
 
