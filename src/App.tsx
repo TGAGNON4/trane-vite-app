@@ -415,8 +415,8 @@ export default function App() {
 
   const clientRef = useMqtt({
     url: "wss://seniordesignmqtt.duckdns.org:8083",
-    username: "dev",
-    password: "trAneEseNdeS_4321",
+    username: import.meta.env.VITE_MQTT_USERNAME as string,
+    password: import.meta.env.VITE_MQTT_PASSWORD as string,
     onMessage: handleMqttMessage,
     onTextMessage: handleTextMessage,
     onConnect: () => requestDates()
