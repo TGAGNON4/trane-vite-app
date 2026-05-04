@@ -326,6 +326,12 @@ export default function App() {
   }, []);
 
   const handleTextMessage = useCallback((topic: string, payload: string) => {
+    if (topic.endsWith("/Unit") && !topic.startsWith("Data/")) {
+      const unit = payload.trim();
+      if (unit === "F") setDisplayUnits("imperial");
+      else if (unit === "C") setDisplayUnits("metric");
+      return;
+    }
     const prefix = `Data/${activeCircuit}/`;
     if (!topic.startsWith(prefix)) return;
     const name = topic.slice(prefix.length);
@@ -403,13 +409,7 @@ export default function App() {
       URL.revokeObjectURL(url);
       return;
     }
-    // Unit sync from HMI: {CIRCUIT}/Unit → "C" | "F"
-    if (topic.endsWith("/Unit") && !topic.startsWith("Data/")) {
-      const unit = payload.trim();
-      if (unit === "F") setDisplayUnits("imperial");
-      else if (unit === "C") setDisplayUnits("metric");
-      return;
-    }
+
     // CoolProp saturation table — published once on Pi startup, retained
     if (name === "R1234yf_Saturation_Table") {
       try {
