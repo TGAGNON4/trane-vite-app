@@ -53,6 +53,15 @@ const sortDatesNewest = (dates: string[]) => {
   });
 };
 
+const subtractSeconds = (hhmmss: string, seconds: number): string => {
+  const [h, m, s] = hhmmss.split(":").map(Number);
+  let total = Math.max(0, h * 3600 + m * 60 + s - seconds);
+  const hh = Math.floor(total / 3600);
+  const mm = Math.floor((total % 3600) / 60);
+  const ss = total % 60;
+  return [hh, mm, ss].map(v => String(v).padStart(2, "0")).join(":");
+};
+
 const pickCircuitFromHash = () => {
   const hash = window.location.hash.replace("#/", "").replace("#", "");
   if (hash === "Circuit2" || hash === "circuit2") return "Circuit2" as const;
@@ -93,6 +102,7 @@ export default function App() {
   const [rangeStart, setRangeStart] = useState<string>("");
   const [rangeEnd, setRangeEnd] = useState<string>("");
   const lastDownloadDateRef = useRef<string>("");
+  const hasBackfilledRef = useRef<Record<CircuitKey, boolean>>({ Circuit1: false, Circuit2: false });
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: 5.0,
     Circuit2: 5.0
@@ -341,6 +351,17 @@ export default function App() {
     }
     if (name === "Available_Time_Ranges") {
       setTimeRange(payload || "");
+      if (payload && selectedDate === todayStr() && !hasBackfilledRef.current[activeCircuit]) {
+        const [, endTime] = payload.split("-");
+        if (endTime) {
+          hasBackfilledRef.current[activeCircuit] = true;
+          const startTime = subtractSeconds(endTime.trim(), 60);
+          clientRef.current?.publish(
+            `Data/${activeCircuit}/Select_Range_Request`,
+            `${startTime} ${endTime.trim()}`,
+          );
+        }
+      }
       return;
     }
     if (name === "Temperature_Download") {

@@ -191,8 +191,13 @@ export const ThermoChart: React.FC<Props> = ({
       .map((key) => {
         const entry = TS_KEYS.find(t => t.key === key)!;
         const raw: number[] = (sensors as any)[key] ?? [];
-        const data = raw.map(v =>
-          entry.isPressure ? toDisplayPressure(v) : toDisplayTemp(v)
+        const labelsLen = formattedLabels.length;
+        const diff = labelsLen - raw.length;
+        const aligned: (number | null)[] = diff > 0
+          ? [...new Array(diff).fill(null), ...raw]
+          : raw.slice(-labelsLen);
+        const data = aligned.map(v =>
+          v === null ? null : (entry.isPressure ? toDisplayPressure(v) : toDisplayTemp(v))
         );
 
         // discharge temp: fill toward setpoint line (next dataset when sorted)
