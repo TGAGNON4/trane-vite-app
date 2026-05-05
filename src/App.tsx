@@ -127,6 +127,10 @@ export default function App() {
     Circuit2: ""
   });
   const [manualOpen, setManualOpen] = useState(false);
+  const [compressorStatus, setCompressorStatus] = useState<Record<CircuitKey, string | null>>({
+    Circuit1: null,
+    Circuit2: null,
+  });
   const [hmiConnected, setHmiConnected] = useState<Record<CircuitKey, boolean | null>>({
     Circuit1: null,
     Circuit2: null
@@ -332,6 +336,14 @@ export default function App() {
       const unit = payload.trim();
       if (unit === "F") setDisplayUnits("imperial");
       else if (unit === "C") setDisplayUnits("metric");
+      return;
+    }
+
+    if (topic.endsWith("/Status") && !topic.startsWith("Data/")) {
+      const circuit = topic.split("/")[0] as CircuitKey;
+      if (circuits.includes(circuit)) {
+        setCompressorStatus(prev => ({ ...prev, [circuit]: payload.trim() }));
+      }
       return;
     }
     const prefix = `Data/${activeCircuit}/`;
@@ -681,67 +693,120 @@ export default function App() {
               </div>
             )}
 
-            <div className="card setpoint-card">
-              <div>Set Temperature</div>
-              <div className="control-row">
-                <input type="number" step="0.1" value={tempSetpointInput[activeCircuit] || ""}
-                  onChange={e => setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
-                  onFocus={() => { isEditingSetpointRef.current[activeCircuit] = true; }}
-                  onBlur={() => {
-                    isEditingSetpointRef.current[activeCircuit] = false;
-                    if (tempSetpointInput[activeCircuit] === "") {
-                      setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: setpoint[activeCircuit] }));
-                    }
-                  }}
-                  onKeyDown={e => { const v = tempSetpointInput[activeCircuit]; if (e.key === "Enter" && v !== "") updateSetpoint(activeCircuit, v as number); }}
-                  className="number-input" />
-                <button
-                  className="btn"
-                  onClick={() => { const v = tempSetpointInput[activeCircuit]; if (v !== "") updateSetpoint(activeCircuit, v as number); }}
-                >
-                  Update
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const status = compressorStatus[activeCircuit];
+              const locked = status === null || status === "Starting" || status === "Shutting Down";
+              const statusDisplay = status === null ? "Setting up ..."
+                : status === "Starting" ? "Ramping RPM up ..."
+                : status === "Shutting Down" ? "Ramping RPM down ..."
+                : status === "Running" ? "Running"
+                : "Ready";
+              const statusColor = status === null ? "#6b7280"
+                : status === "Starting" ? "#facc15"
+                : status === "Shutting Down" ? "#f97316"
+                : status === "Running" ? "#22c55e"
+                : "#6b7280";
+              return (
+                <div className="card" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#6b7280" }}>Controls</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <span style={{ width: "0.55rem", height: "0.55rem", borderRadius: "50%", background: statusColor, display: "inline-block", flexShrink: 0 }} />
+                      <span style={{ fontSize: "0.8rem", color: statusColor, fontWeight: 600 }}>{statusDisplay}</span>
+                    </div>
+                  </div>
 
-            <div className="card">
-              <div>Compressor RPM Override</div>
-              <div style={{ marginTop: "0.25rem", fontSize: "0.85rem", color: "#e5e7eb" }}>
-                Current: {currentRpm[activeCircuit] !== null ? `${currentRpm[activeCircuit]} RPM` : "--"}
-              </div>
-              <div style={{ marginTop: "0.1rem", fontSize: "0.85rem", color: rpmOverride[activeCircuit] !== null ? "var(--accent)" : "#6b7280" }}>
-                {rpmOverride[activeCircuit] !== null ? `Override active: ${rpmOverride[activeCircuit]} RPM` : "No override active"}
-              </div>
-              <div className="control-row" style={{ marginTop: "0.5rem" }}>
-                <input
-                  type="number" step="100" min={RPM_MIN} max={RPM_MAX} placeholder="RPM"
-                  value={rpmInput[activeCircuit]}
-                  onChange={e => setRpmInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
-                  onKeyDown={e => { const v = rpmInput[activeCircuit]; if (e.key === "Enter" && v !== "") applyRpmOverride(activeCircuit, v as number); }}
-                  className="number-input"
-                />
-                <button className="btn" onClick={() => { const v = rpmInput[activeCircuit]; if (v !== "") applyRpmOverride(activeCircuit, v as number); }}>Set</button>
-                <button className="btn" onClick={() => clearRpmOverride(activeCircuit)}>Clear</button>
-              </div>
-              <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
-                <div className="control-row">
-                  <button
-                    className="btn"
-                    style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff" }}
-                    onClick={() => requestStart(activeCircuit)}
-                  >
-                    Start Compressor
-                  </button>
-                  <button
-                    className="btn"
-                    style={{ background: "#dc2626", borderColor: "#dc2626", color: "#fff" }}
-                    onClick={() => requestShutdown(activeCircuit)}
-                  >
-                    Shutdown Compressor
-                  </button>
+                  {/* Compressor */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <div style={{ fontSize: "0.8rem", color: "#9ca3af", fontWeight: 600 }}>Compressor</div>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        onClick={() => requestStart(activeCircuit)}
+                        disabled={locked}
+                        style={{
+                          flex: 1, padding: "0.6rem 0", fontWeight: 700, fontSize: "0.9rem",
+                          background: locked ? "#1a2e1a" : "#16a34a", border: "none", borderRadius: "0.4rem",
+                          color: locked ? "#4b5563" : "#fff", cursor: locked ? "not-allowed" : "pointer", letterSpacing: "0.02em",
+                        }}
+                      >
+                        Start
+                      </button>
+                      <button
+                        onClick={() => requestShutdown(activeCircuit)}
+                        disabled={locked}
+                        style={{
+                          flex: 1, padding: "0.6rem 0", fontWeight: 700, fontSize: "0.9rem",
+                          background: locked ? "#2e1a1a" : "#dc2626", border: "none", borderRadius: "0.4rem",
+                          color: locked ? "#4b5563" : "#fff", cursor: locked ? "not-allowed" : "pointer", letterSpacing: "0.02em",
+                        }}
+                      >
+                        Shutdown
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: "1px solid var(--border)" }} />
+
+                  <div style={{ borderTop: "1px solid var(--border)" }} />
+
+                  {/* Setpoint + RPM override side by side */}
+                  <div style={{ display: "flex", gap: "1rem" }}>
+
+                    {/* Temperature setpoint */}
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                      <div style={{ fontSize: "0.8rem", color: "#9ca3af", fontWeight: 600 }}>Setpoint</div>
+                      <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                        <input type="number" step="0.1" value={tempSetpointInput[activeCircuit] || ""}
+                          disabled={locked}
+                          onChange={e => setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
+                          onFocus={() => { isEditingSetpointRef.current[activeCircuit] = true; }}
+                          onBlur={() => {
+                            isEditingSetpointRef.current[activeCircuit] = false;
+                            if (tempSetpointInput[activeCircuit] === "") {
+                              setTempSetpointInput(prev => ({ ...prev, [activeCircuit]: setpoint[activeCircuit] }));
+                            }
+                          }}
+                          onKeyDown={e => { const v = tempSetpointInput[activeCircuit]; if (e.key === "Enter" && v !== "") updateSetpoint(activeCircuit, v as number); }}
+                          className="number-input"
+                          style={{ flex: 1, minWidth: 0 }} />
+                        <button className="btn" disabled={locked} onClick={() => { const v = tempSetpointInput[activeCircuit]; if (v !== "") updateSetpoint(activeCircuit, v as number); }}>
+                          Set
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* RPM override */}
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                      <div style={{ fontSize: "0.8rem", color: "#9ca3af", fontWeight: 600 }}>
+                        RPM Override
+                        {rpmOverride[activeCircuit] !== null && (
+                          <span style={{ marginLeft: "0.5rem", color: "var(--accent)", fontWeight: 400 }}>
+                            {rpmOverride[activeCircuit]} active
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                        <input
+                          type="number" step="100" min={RPM_MIN} max={RPM_MAX} placeholder="RPM"
+                          disabled={locked}
+                          value={rpmInput[activeCircuit]}
+                          onChange={e => setRpmInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}
+                          onKeyDown={e => { const v = rpmInput[activeCircuit]; if (e.key === "Enter" && v !== "") applyRpmOverride(activeCircuit, v as number); }}
+                          className="number-input"
+                          style={{ flex: 1, minWidth: 0 }}
+                        />
+                        <button className="btn" disabled={locked} onClick={() => { const v = rpmInput[activeCircuit]; if (v !== "") applyRpmOverride(activeCircuit, v as number); }}>Set</button>
+                        <button className="btn" disabled={locked} onClick={() => clearRpmOverride(activeCircuit)}>Clear</button>
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
+                        Current: {currentRpm[activeCircuit] !== null ? `${currentRpm[activeCircuit]} RPM` : "—"}
+                      </div>
+                    </div>
+
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             <div className="card">
               <div>Data</div>

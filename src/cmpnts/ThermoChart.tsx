@@ -162,6 +162,14 @@ export const ThermoChart: React.FC<Props> = ({
     new Set(["dischargeTemp", "setpointData"] as TsKey[])
   );
   const [helpOpen, setHelpOpen] = useState(false);
+  const [windowPoints, setWindowPoints] = useState(120);
+
+  const WINDOW_OPTIONS = [
+    { label: "1m",  points: 60  },
+    { label: "2m",  points: 120 },
+    { label: "5m",  points: 300 },
+    { label: "10m", points: 600 },
+  ];
 
   const toDisplayTemp = (c: number) =>
     displayUnits === "metric" ? c : c * 9 / 5 + 32;
@@ -171,7 +179,7 @@ export const ThermoChart: React.FC<Props> = ({
 
   // ── Time-series ──────────────────────────────────────────────────────────
   const tsData = useCallback((): ChartData<"line"> => {
-    const formattedLabels = sensors.labels.map(ts =>
+    const formattedLabels = sensors.labels.slice(-windowPoints).map(ts =>
       new Date(ts).toLocaleTimeString()
     );
 
@@ -190,7 +198,7 @@ export const ThermoChart: React.FC<Props> = ({
       })
       .map((key) => {
         const entry = TS_KEYS.find(t => t.key === key)!;
-        const raw: number[] = (sensors as any)[key] ?? [];
+        const raw: number[] = ((sensors as any)[key] ?? []).slice(-windowPoints);
         const labelsLen = formattedLabels.length;
         const diff = labelsLen - raw.length;
         const aligned: (number | null)[] = diff > 0
@@ -515,7 +523,27 @@ export const ThermoChart: React.FC<Props> = ({
       </div>
 
       {mode === "timeseries" && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "0.25rem", marginRight: "0.5rem" }}>
+            {WINDOW_OPTIONS.map(({ label, points }) => (
+              <button
+                key={points}
+                type="button"
+                onClick={() => setWindowPoints(points)}
+                style={{
+                  fontSize: "0.72rem",
+                  padding: "0.2rem 0.45rem",
+                  borderRadius: "0.3rem",
+                  border: `1px solid ${windowPoints === points ? "#facc15" : "#374151"}`,
+                  background: windowPoints === points ? "#facc1522" : "transparent",
+                  color: windowPoints === points ? "#facc15" : "#6b7280",
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {TS_KEYS.map(({ key, label, isPressure }) => (
             <button
               key={key}

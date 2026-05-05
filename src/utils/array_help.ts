@@ -1,7 +1,7 @@
 // src/utils/array_help.ts
 // Keep only the newest values for simple rolling charts.
 // Skip NaN for number series so charts don't break on missing data.
-export const pushRolling = <T,>(prev: T[], newVal: T, maxPoints = 50): T[] => {
+export const pushRolling = <T,>(prev: T[], newVal: T, maxPoints = 600): T[] => {
   if (typeof newVal === "number" && Number.isNaN(newVal)) {
     return prev;
   }
