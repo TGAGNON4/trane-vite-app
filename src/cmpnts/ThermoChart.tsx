@@ -568,17 +568,25 @@ export const ThermoChart: React.FC<Props> = ({
         {mode === "pt"         && <Chart type="scatter" data={ptData()} options={ptOptions} />}
       </div>
 
-      {mode === "ph" && satReady && (
+      {mode === "ph" && (
         <div style={{ fontSize: "0.72rem", color: "#6b7280", lineHeight: 1.5 }}>
-          The dome shows where R-1234yf changes phase: left of dome = subcooled liquid, inside = two-phase mixture, right = superheated gas.
-          The dashed cycle path connects the four sensor points in circuit order (evaporator outlet → compressor → condenser → EXV → back).
-          {statePoints && " Enthalpies computed by CoolProp on the Pi."}
+          {satReady && <>
+            The dome shows where R-1234yf changes phase: left of dome = subcooled liquid, inside = two-phase mixture, right = superheated gas.
+            The dashed cycle path connects the four sensor points in circuit order (evaporator outlet → compressor → condenser → EXV → back).
+            {statePoints && " Enthalpies computed by CoolProp on the Pi."}
+            {" "}
+          </>}
+          <span style={{ color: "#f59e0b" }}>Note: the corners of the cycle may not be precisely accurate due to sensor placement.</span>
         </div>
       )}
-      {mode === "pt" && satReady && (
-        <div style={{ fontSize: "0.72rem", color: "#6b7280" }}>
-          Saturation curve shows the boiling/condensing pressure at each temperature.
-          Points on the curve are in two-phase; above it is subcooled liquid; below is superheated gas.
+      {mode === "pt" && (
+        <div style={{ fontSize: "0.72rem", color: "#6b7280", lineHeight: 1.5 }}>
+          {satReady && <>
+            Saturation curve shows the boiling/condensing pressure at each temperature.
+            Points on the curve are in two-phase; above it is subcooled liquid; below is superheated gas.
+            {" "}
+          </>}
+          <span style={{ color: "#f59e0b" }}>Note: the corners of the cycle may not be precisely accurate due to sensor placement.</span>
         </div>
       )}
     </div>

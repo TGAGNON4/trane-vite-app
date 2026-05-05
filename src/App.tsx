@@ -6,6 +6,7 @@ import { ThermoChart, type ThermoSensors, type SatRow, type StatePoints } from "
 import { useMqtt } from "./hooks/MQTT";
 import { pushRolling, saveToStorage, loadFromStorage } from "./utils/array_help";
 import { RPM_MIN, RPM_MAX } from "./utils/app_helpers";
+import UserManual from "./cmpnts/UserManual";
 
 // -----------------
 // Types and helpers
@@ -125,6 +126,7 @@ export default function App() {
     Circuit1: "",
     Circuit2: ""
   });
+  const [manualOpen, setManualOpen] = useState(false);
   const [hmiConnected, setHmiConnected] = useState<Record<CircuitKey, boolean | null>>({
     Circuit1: null,
     Circuit2: null
@@ -593,6 +595,9 @@ export default function App() {
             >
               {displayUnits === "metric" ? "Show Imperial" : "Show Metric"}
             </button>
+            <button className="btn" onClick={() => setManualOpen(true)}>
+              User Manual
+            </button>
           </div>
           <div className="menu-bar">
             <span className="menu-label">
@@ -776,6 +781,7 @@ export default function App() {
           </div>
         </main>
       </div>
+      {manualOpen && <UserManual onClose={() => setManualOpen(false)} />}
     </div>
   );
 }
