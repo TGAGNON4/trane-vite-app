@@ -710,9 +710,16 @@ export default function App() {
                 <div className="card" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#6b7280" }}>Controls</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                      <span style={{ width: "0.55rem", height: "0.55rem", borderRadius: "50%", background: statusColor, display: "inline-block", flexShrink: 0 }} />
-                      <span style={{ fontSize: "0.8rem", color: statusColor, fontWeight: 600 }}>{statusDisplay}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                      {currentRpm[activeCircuit] !== null && (
+                        <span style={{ fontSize: "1rem", fontWeight: 700, color: statusColor, letterSpacing: "0.02em" }}>
+                          {currentRpm[activeCircuit]} <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#9ca3af" }}>RPM</span>
+                        </span>
+                      )}
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <span style={{ width: "0.55rem", height: "0.55rem", borderRadius: "50%", background: statusColor, display: "inline-block", flexShrink: 0 }} />
+                        <span style={{ fontSize: "0.8rem", color: statusColor, fontWeight: 600 }}>{statusDisplay}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -797,9 +804,6 @@ export default function App() {
                         />
                         <button className="btn" disabled={locked} onClick={() => { const v = rpmInput[activeCircuit]; if (v !== "") applyRpmOverride(activeCircuit, v as number); }}>Set</button>
                         <button className="btn" disabled={locked} onClick={() => clearRpmOverride(activeCircuit)}>Clear</button>
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                        Current: {currentRpm[activeCircuit] !== null ? `${currentRpm[activeCircuit]} RPM` : "—"}
                       </div>
                     </div>
 
