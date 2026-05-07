@@ -346,6 +346,31 @@ export default function App() {
       }
       return;
     }
+    // CoolProp data is keyed per circuit — handle before the activeCircuit filter.
+    if (topic.startsWith("Data/")) {
+      const parts = topic.split("/");
+      const msgCircuit = parts[1] as CircuitKey;
+      const msgName = parts.slice(2).join("/");
+      if (msgName === "R1234yf_Saturation_Table") {
+        try {
+          const table = JSON.parse(payload) as SatRow[];
+          if (circuits.includes(msgCircuit)) {
+            setSatTable(prev => ({ ...prev, [msgCircuit]: table }));
+          }
+        } catch { /* malformed JSON */ }
+        return;
+      }
+      if (msgName === "R1234yf_State_Points") {
+        try {
+          const pts = JSON.parse(payload) as StatePoints;
+          if (circuits.includes(msgCircuit)) {
+            setStatePoints(prev => ({ ...prev, [msgCircuit]: pts }));
+          }
+        } catch { /* malformed JSON */ }
+        return;
+      }
+    }
+
     const prefix = `Data/${activeCircuit}/`;
     if (!topic.startsWith(prefix)) return;
     const name = topic.slice(prefix.length);
@@ -424,28 +449,6 @@ export default function App() {
       return;
     }
 
-    // CoolProp saturation table — published once on Pi startup, retained
-    if (name === "R1234yf_Saturation_Table") {
-      try {
-        const table = JSON.parse(payload) as SatRow[];
-        const circuit = topic.split("/")[1] as CircuitKey;
-        if (circuits.includes(circuit)) {
-          setSatTable(prev => ({ ...prev, [circuit]: table }));
-        }
-      } catch { /* malformed JSON — ignore */ }
-      return;
-    }
-    // CoolProp state points — published every sample cycle, not retained
-    if (name === "R1234yf_State_Points") {
-      try {
-        const pts = JSON.parse(payload) as StatePoints;
-        const circuit = topic.split("/")[1] as CircuitKey;
-        if (circuits.includes(circuit)) {
-          setStatePoints(prev => ({ ...prev, [circuit]: pts }));
-        }
-      } catch { /* malformed JSON — ignore */ }
-      return;
-    }
   }, [activeCircuit, selectedDate, availableDates]);
 
   const clientRef = useMqtt({
