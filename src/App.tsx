@@ -74,6 +74,12 @@ const INPUT_UNITS: "imperial" | "metric" = "metric";
 const toMetricTemp = (f: number) => (f - 32) * 5 / 9;
 const toMetricPressure = (psi: number) => psi * 6894.757;
 
+const SESSION_TOKEN = (() => {
+  let t = localStorage.getItem("session_token");
+  if (!t) { t = crypto.randomUUID(); localStorage.setItem("session_token", t); }
+  return t;
+})();
+
 export default function App() {
   // -----------------
   // State
@@ -135,6 +141,11 @@ export default function App() {
     Circuit1: null,
     Circuit2: null
   });
+  const [lockStatus, setLockStatus] = useState<Record<CircuitKey, "owner" | "locked" | "unclaimed">>({
+    Circuit1: "unclaimed",
+    Circuit2: "unclaimed"
+  });
+  const intentionalReleaseRef = useRef<Record<CircuitKey, boolean>>({ Circuit1: false, Circuit2: false });
 
   // CoolProp-derived thermodynamic data published by the Pi
   const [satTable, setSatTable] = useState<Record<CircuitKey, SatRow[] | null>>({
@@ -332,6 +343,24 @@ export default function App() {
   }, []);
 
   const handleTextMessage = useCallback((topic: string, payload: string) => {
+    if (!topic.startsWith("Data/") && topic.endsWith("/Session_Lock")) {
+      const circuit = topic.split("/")[0] as CircuitKey;
+      if (!circuits.includes(circuit)) return;
+      if (payload === SESSION_TOKEN) {
+        setLockStatus(prev => ({ ...prev, [circuit]: "owner" }));
+      } else if (payload === "") {
+        if (!intentionalReleaseRef.current[circuit]) {
+          clientRef.current?.publish(`${circuit}/Session_Lock`, SESSION_TOKEN, { retain: true });
+          setLockStatus(prev => ({ ...prev, [circuit]: "owner" }));
+        } else {
+          setLockStatus(prev => ({ ...prev, [circuit]: "unclaimed" }));
+        }
+      } else {
+        setLockStatus(prev => ({ ...prev, [circuit]: "locked" }));
+      }
+      return;
+    }
+
     if (topic.endsWith("/Unit") && !topic.startsWith("Data/")) {
       const unit = payload.trim();
       if (unit === "F") setDisplayUnits("imperial");
@@ -557,6 +586,18 @@ export default function App() {
     }
   };
 
+  const releaseLock = (circuit: CircuitKey) => {
+    intentionalReleaseRef.current[circuit] = true;
+    clientRef.current?.publish(`${circuit}/Session_Lock`, "", { retain: true });
+    setLockStatus(prev => ({ ...prev, [circuit]: "unclaimed" }));
+  };
+
+  const claimLock = (circuit: CircuitKey) => {
+    intentionalReleaseRef.current[circuit] = false;
+    clientRef.current?.publish(`${circuit}/Session_Lock`, SESSION_TOKEN, { retain: true });
+    setLockStatus(prev => ({ ...prev, [circuit]: "owner" }));
+  };
+
   const requestShutdown = (circuit: CircuitKey) => {
     if (!clientRef.current?.connected) return;
     if (!window.confirm(`Shut down compressor for ${circuit}? It will ramp to minimum RPM.`)) return;
@@ -696,9 +737,23 @@ export default function App() {
               </div>
             )}
 
+            {lockStatus[activeCircuit] === "locked" && (
+              <div className="card" style={{ borderColor: "#ef4444", color: "#ef4444", padding: "0.5rem 1rem", fontSize: "0.9rem", fontWeight: 600 }}>
+                Controlled by another user
+              </div>
+            )}
+
+            {lockStatus[activeCircuit] === "unclaimed" && (
+              <div className="card" style={{ borderColor: "#6b7280", padding: "0.5rem 1rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: "0.9rem", color: "#9ca3af" }}>No one has control</span>
+                <button className="btn" onClick={() => claimLock(activeCircuit)}>Take Control</button>
+              </div>
+            )}
+
             {(() => {
               const status = compressorStatus[activeCircuit];
-              const locked = status === null || status === "Starting" || status === "Shutting Down";
+              const isReadOnly = lockStatus[activeCircuit] === "locked";
+              const locked = isReadOnly || status === null || status === "Starting" || status === "Shutting Down";
               const statusDisplay = status === null ? "Setting up ..."
                 : status === "Starting" ? "Ramping RPM up ..."
                 : status === "Shutting Down" ? "Ramping RPM down ..."
@@ -714,6 +769,15 @@ export default function App() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#6b7280" }}>Controls</div>
                     <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                      {lockStatus[activeCircuit] === "owner" && (
+                        <button
+                          className="btn"
+                          onClick={() => releaseLock(activeCircuit)}
+                          style={{ fontSize: "0.75rem", padding: "0.25rem 0.6rem", opacity: 0.7 }}
+                        >
+                          Release Lock
+                        </button>
+                      )}
                       {currentRpm[activeCircuit] !== null && (
                         <span style={{ fontSize: "1rem", fontWeight: 700, color: statusColor, letterSpacing: "0.02em" }}>
                           {currentRpm[activeCircuit]} <span style={{ fontSize: "0.75rem", fontWeight: 400, color: "#9ca3af" }}>RPM</span>
