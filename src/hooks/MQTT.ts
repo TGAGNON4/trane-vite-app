@@ -44,6 +44,10 @@ type UseMqttProps = {
 
 export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onConnect }: UseMqttProps) => {
   const clientRef = useRef<MqttClient | null>(null);
+  const onTextMessageRef = useRef(onTextMessage);
+  const onConnectRef = useRef(onConnect);
+  onTextMessageRef.current = onTextMessage;
+  onConnectRef.current = onConnect;
 
   useEffect(() => {
     console.log("Connecting to MQTT broker at", url);
@@ -59,7 +63,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
 
     client.on("connect", () => {
       console.log("MQTT connected");
-      onConnect?.(client);
+      onConnectRef.current?.(client);
 
       const topics = CIRCUITS.flatMap(circuit =>
         SENSOR_TOPICS.map(topic => `${circuit}/${topic}`)
@@ -93,7 +97,7 @@ export const useMqtt = ({ url, username, password, onMessage, onTextMessage, onC
     client.on("message", (topic: string, payload: Buffer) => {
       // App data and circuit-level text topics are text; sensor data is numbers.
       if (topic.startsWith("Data/") || CIRCUITS.some(c => CIRCUIT_TEXT_TOPICS.some(t => topic === `${c}/${t}`))) {
-        onTextMessage?.(topic, payload.toString());
+        onTextMessageRef.current?.(topic, payload.toString());
         return;
       }
       if (topic === "latency/probe") {

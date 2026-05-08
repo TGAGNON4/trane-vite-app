@@ -362,6 +362,7 @@ export default function App() {
     }
 
     if (topic.endsWith("/Unit") && !topic.startsWith("Data/")) {
+      if (topic.split("/")[0] !== activeCircuit) return;
       const unit = payload.trim();
       if (unit === "F") setDisplayUnits("imperial");
       else if (unit === "C") setDisplayUnits("metric");
