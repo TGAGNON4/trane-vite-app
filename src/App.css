@@ -91,6 +91,11 @@ body,html,#root {
   color:#000;
   cursor:pointer;
 }
+.btn.btn-active {
+  filter: brightness(1.4);
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
 .graph-card canvas {
   width:100%!important;
   height:100%!important;

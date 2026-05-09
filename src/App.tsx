@@ -40,11 +40,6 @@ const storageKey = (circuit: CircuitKey, key: string) => `${circuit}:${key}`;
 
 const todayStr = () => new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
 
-const formatDate = (dateStr: string) => {
-  const parts = dateStr.split("-");
-  if (parts.length !== 3) return dateStr;
-  return `${parts[1]}/${parts[0]}/${parts[2]}`;
-};
 
 const sortDatesNewest = (dates: string[]) => {
   return dates.sort((a, b) => {
@@ -137,6 +132,8 @@ export default function App() {
     Circuit2: ""
   });
   const [manualOpen, setManualOpen] = useState(false);
+  const [selectedYear, setSelectedYear] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [compressorStatus, setCompressorStatus] = useState<Record<CircuitKey, string | null>>({
     Circuit1: null,
     Circuit2: null,
@@ -193,9 +190,17 @@ export default function App() {
   useEffect(() => {
     setAvailableDates([]);
     setSelectedDate("");
+    setSelectedYear("");
+    setSelectedMonth("");
     setTimeRange("");
     requestDates();
   }, [activeCircuit]);
+
+  useEffect(() => {
+    if (!selectedDate) return;
+    const [, mm, yyyy] = selectedDate.split("-"); // DD-MM-YYYY
+    if (mm && yyyy) { setSelectedYear(yyyy); setSelectedMonth(mm); }
+  }, [selectedDate]);
 
   useEffect(() => {
     setTempSetpointInput(
@@ -646,6 +651,26 @@ export default function App() {
   };
 
   // -----------------
+  // Date picker helpers
+  // -----------------
+  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const dateTree: Record<string, Record<string, string[]>> = {};
+  for (const d of availableDates) {
+    const [dd, mm, yyyy] = d.split("-");
+    if (!dd || !mm || !yyyy) continue;
+    if (!dateTree[yyyy]) dateTree[yyyy] = {};
+    if (!dateTree[yyyy][mm]) dateTree[yyyy][mm] = [];
+    dateTree[yyyy][mm].push(d);
+  }
+  const sortedYears = Object.keys(dateTree).sort((a, b) => b.localeCompare(a));
+  const monthsInYear = selectedYear && dateTree[selectedYear]
+    ? Object.keys(dateTree[selectedYear]).sort()
+    : [];
+  const daysInMonth = selectedYear && selectedMonth && dateTree[selectedYear]?.[selectedMonth]
+    ? [...dateTree[selectedYear][selectedMonth]].sort((a, b) => parseInt(a) - parseInt(b))
+    : [];
+
+  // -----------------
   // Render
   // -----------------
   return (
@@ -903,21 +928,32 @@ export default function App() {
             <div className="card">
               <div>Data</div>
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
-                <button className="btn" onClick={requestDates}>Get dates</button>
+                <button className="btn" onClick={requestDates}>Refresh dates</button>
+                <select
+                  className="number-input"
+                  value={selectedYear}
+                  onChange={e => { setSelectedYear(e.target.value); setSelectedMonth(""); setSelectedDate(""); setTimeRange(""); }}
+                >
+                  <option value="">Year</option>
+                  {sortedYears.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <select
+                  className="number-input"
+                  value={selectedMonth}
+                  disabled={!selectedYear}
+                  onChange={e => { setSelectedMonth(e.target.value); setSelectedDate(""); setTimeRange(""); }}
+                >
+                  <option value="">Month</option>
+                  {monthsInYear.map(m => <option key={m} value={m}>{MONTH_NAMES[parseInt(m) - 1]}</option>)}
+                </select>
                 <select
                   className="number-input"
                   value={selectedDate}
-                  onChange={e => {
-                    const next = e.target.value;
-                    setSelectedDate(next);
-                    setTimeRange("");
-                    requestTimeRange(next);
-                  }}
+                  disabled={!selectedMonth}
+                  onChange={e => { const d = e.target.value; setSelectedDate(d); setTimeRange(""); if (d) requestTimeRange(d); }}
                 >
-                  <option value={todayStr()}>today</option>
-                  {availableDates.map(d => (
-                    <option key={d} value={d}>{formatDate(d)}</option>
-                  ))}
+                  <option value="">Day</option>
+                  {daysInMonth.map(d => <option key={d} value={d}>{parseInt(d.split("-")[0])}</option>)}
                 </select>
               </div>
               {timeRange && <div className="control-row" style={{ marginTop: "0.5rem" }}>{timeRange}</div>}
