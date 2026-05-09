@@ -75,6 +75,18 @@ const SESSION_TOKEN = (() => {
   return t;
 })();
 
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+const triggerDownload = (content: string, filename: string) => {
+  const url = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 export default function App() {
   // -----------------
   // State
@@ -105,7 +117,6 @@ export default function App() {
   const [rangeEnd, setRangeEnd] = useState<string>("");
   const lastDownloadDateRef = useRef<string>("");
   const pendingDownloadRef = useRef<Set<string>>(new Set());
-  const [readyDownload, setReadyDownload] = useState<{ url: string; filename: string } | null>(null);
   const hasBackfilledRef = useRef<Record<CircuitKey, boolean>>({ Circuit1: false, Circuit2: false });
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: 5.0,
@@ -478,8 +489,7 @@ export default function App() {
       pendingDownloadRef.current.delete("Temperature_Download");
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      const url = URL.createObjectURL(new Blob([parsed.body], { type: "text/plain" }));
-      setReadyDownload(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `temps_${dateStr}.txt` }; });
+      triggerDownload(parsed.body, `temps_${dateStr}.txt`);
       return;
     }
     if (name === "Pressure_Download") {
@@ -487,8 +497,7 @@ export default function App() {
       pendingDownloadRef.current.delete("Pressure_Download");
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      const url = URL.createObjectURL(new Blob([parsed.body], { type: "text/plain" }));
-      setReadyDownload(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `pressures_${dateStr}.txt` }; });
+      triggerDownload(parsed.body, `pressures_${dateStr}.txt`);
       return;
     }
     if (name === "Setpoint_Download") {
@@ -496,8 +505,7 @@ export default function App() {
       pendingDownloadRef.current.delete("Setpoint_Download");
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      const url = URL.createObjectURL(new Blob([parsed.body], { type: "text/plain" }));
-      setReadyDownload(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `setpoints_${dateStr}.txt` }; });
+      triggerDownload(parsed.body, `setpoints_${dateStr}.txt`);
       return;
     }
 
@@ -538,7 +546,11 @@ export default function App() {
     }
   };
 
+  const iosDownloadBlocked = () =>
+    alert("Downloads are not supported on iOS. Please use a desktop browser to download data files.");
+
   const requestDownload = () => {
+    if (isIOS) { iosDownloadBlocked(); return; }
     const dateStr = selectedDate || availableDates[0] || todayStr();
     lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
@@ -548,6 +560,7 @@ export default function App() {
   };
 
   const requestPressureDownload = () => {
+    if (isIOS) { iosDownloadBlocked(); return; }
     const dateStr = selectedDate || availableDates[0] || todayStr();
     lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
@@ -557,6 +570,7 @@ export default function App() {
   };
 
   const requestSetpointDownload = () => {
+    if (isIOS) { iosDownloadBlocked(); return; }
     const dateStr = selectedDate || availableDates[0] || todayStr();
     lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
@@ -970,19 +984,6 @@ export default function App() {
                 <button className="btn" onClick={requestPressureDownload}>Download Pressures</button>
                 <button className="btn" onClick={requestSetpointDownload}>Download Setpoints</button>
               </div>
-              {readyDownload && (
-                <div className="control-row" style={{ marginTop: "0.5rem" }}>
-                  <a
-                    className="btn"
-                    href={readyDownload.url}
-                    download={readyDownload.filename}
-                    onClick={() => setTimeout(() => { URL.revokeObjectURL(readyDownload.url); setReadyDownload(null); }, 500)}
-                  >
-                    Save {readyDownload.filename}
-                  </a>
-                  <button className="btn" onClick={() => { URL.revokeObjectURL(readyDownload.url); setReadyDownload(null); }}>Dismiss</button>
-                </div>
-              )}
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={showLive}>Live data</button>
               </div>
