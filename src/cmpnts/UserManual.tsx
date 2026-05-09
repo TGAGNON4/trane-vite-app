@@ -166,6 +166,9 @@ export default function UserManual({ onClose }: Props) {
           <button className="um-close" onClick={onClose} aria-label="Close">&#x2715;</button>
         </div>
         <div className="um-body">
+          <div className="um-warning">
+            <strong>Before turning on any circuit:</strong> The compressor must remain upright for at least 5 minutes before the circuit is started. Starting it too soon after tipping or transporting can damage the compressor.
+          </div>
           {SECTIONS.map((section, si) => (
             <section key={si} className="um-section">
               <h3 className="um-section-title">

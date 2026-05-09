@@ -161,3 +161,35 @@ body,html,#root {
   color:#000;
   border-color:var(--accent);
 }
+
+.startup-notice-overlay {
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.7);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:1100;
+}
+.startup-notice {
+  background:#451a03;
+  border:1px solid #ea580c;
+  border-radius:0.75rem;
+  padding:1.5rem;
+  width:min(420px,90vw);
+  display:flex;
+  flex-direction:column;
+  gap:1rem;
+  box-shadow:0 8px 32px rgba(0,0,0,0.6);
+}
+.startup-notice-title {
+  font-size:1.1rem;
+  font-weight:700;
+  color:#fb923c;
+}
+.startup-notice-body {
+  margin:0;
+  color:#fed7aa;
+  font-size:0.95rem;
+  line-height:1.55;
+}

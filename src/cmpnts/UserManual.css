@@ -101,3 +101,13 @@
   color: #e5e7eb;
   font-weight: 600;
 }
+
+.um-warning {
+  background: #451a03;
+  border: 1px solid #ea580c;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  color: #fed7aa;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

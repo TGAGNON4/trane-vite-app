@@ -145,6 +145,7 @@ export default function App() {
     Circuit2: ""
   });
   const [manualOpen, setManualOpen] = useState(false);
+  const [startupNotice, setStartupNotice] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [compressorStatus, setCompressorStatus] = useState<Record<CircuitKey, string | null>>({
@@ -991,6 +992,17 @@ export default function App() {
           </div>
         </main>
       </div>
+      {startupNotice && (
+        <div className="startup-notice-overlay" onClick={() => setStartupNotice(false)}>
+          <div className="startup-notice" onClick={e => e.stopPropagation()}>
+            <div className="startup-notice-title">Before Starting</div>
+            <p className="startup-notice-body">
+              The compressor must remain <strong>upright for at least 5 minutes</strong> before the circuit is started. Starting it too soon after tipping or transporting can damage the compressor.
+            </p>
+            <button className="btn" onClick={() => setStartupNotice(false)}>OK, understood</button>
+          </div>
+        </div>
+      )}
       {manualOpen && <UserManual onClose={() => setManualOpen(false)} />}
     </div>
   );
