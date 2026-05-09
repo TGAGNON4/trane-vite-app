@@ -124,6 +124,10 @@ export default function App() {
     Circuit1: null,
     Circuit2: null
   });
+  const [vfdLimits, setVfdLimits] = useState<Record<CircuitKey, { min: number; max: number }>>({
+    Circuit1: { min: RPM_MIN, max: RPM_MAX },
+    Circuit2: { min: RPM_MIN, max: RPM_MAX },
+  });
   const [currentRpm, setCurrentRpm] = useState<Record<CircuitKey, number | null>>({
     Circuit1: null,
     Circuit2: null
@@ -160,6 +164,9 @@ export default function App() {
   // -----------------
   // Refs
   // -----------------
+  const unitDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUnitRef = useRef<string | null>(null);
+
   const isEditingSetpointRef = useRef<Record<CircuitKey, boolean>>({
     Circuit1: false,
     Circuit2: false
@@ -203,6 +210,22 @@ export default function App() {
       ) as Record<CircuitKey, number | "">
     );
   }, [displayUnits]);
+
+  useEffect(() => {
+    if (!("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    const acquire = async () => {
+      try { lock = await navigator.wakeLock.request("screen"); }
+      catch { /* denied or not supported — silent */ }
+    };
+    const onVisibility = () => { if (document.visibilityState === "visible") acquire(); };
+    acquire();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      lock?.release();
+    };
+  }, []);
 
   // -----------------
   // Derived UI values
@@ -279,6 +302,16 @@ export default function App() {
 
     if (topicPart === "HMI_Status") {
       setHmiConnected(prev => ({ ...prev, [circuit]: val === 1 }));
+      return;
+    }
+
+    if (topicPart === "VFD_Min_RPM" && Number.isFinite(val)) {
+      setVfdLimits(prev => ({ ...prev, [circuit]: { ...prev[circuit], min: val } }));
+      return;
+    }
+
+    if (topicPart === "VFD_Max_RPM" && Number.isFinite(val)) {
+      setVfdLimits(prev => ({ ...prev, [circuit]: { ...prev[circuit], max: val } }));
       return;
     }
 
@@ -575,7 +608,8 @@ export default function App() {
   };
 
   const applyRpmOverride = (circuit: CircuitKey, rpm: number) => {
-    const clamped = Math.max(RPM_MIN, Math.min(RPM_MAX, rpm));
+    const { min, max } = vfdLimits[circuit];
+    const clamped = Math.max(min, Math.min(max, rpm));
     if (clientRef.current?.connected) {
       clientRef.current.publish(`${circuit}/Compressor_RPM`, `${clamped}`, { retain: true });
     }
@@ -644,10 +678,14 @@ export default function App() {
               onClick={() => {
                 const next = displayUnits === "metric" ? "imperial" : "metric";
                 setDisplayUnits(next);
-                const mqttUnit = next === "imperial" ? "F" : "C";
-                if (clientRef.current?.connected) {
-                  circuits.forEach(c => clientRef.current!.publish(`Data/${c}/Unit_Change`, mqttUnit));
-                }
+                pendingUnitRef.current = next === "imperial" ? "F" : "C";
+                if (unitDebounceRef.current) clearTimeout(unitDebounceRef.current);
+                unitDebounceRef.current = setTimeout(() => {
+                  const mqttUnit = pendingUnitRef.current;
+                  if (mqttUnit && clientRef.current?.connected) {
+                    circuits.forEach(c => clientRef.current!.publish(`Data/${c}/Unit_Change`, mqttUnit));
+                  }
+                }, 400);
               }}
             >
               {displayUnits === "metric" ? "Show Imperial" : "Show Metric"}
@@ -862,7 +900,7 @@ export default function App() {
                       </div>
                       <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
                         <input
-                          type="number" step="100" min={RPM_MIN} max={RPM_MAX} placeholder="RPM"
+                          type="number" step="100" min={vfdLimits[activeCircuit].min} max={vfdLimits[activeCircuit].max} placeholder="RPM"
                           disabled={locked}
                           value={rpmInput[activeCircuit]}
                           onChange={e => setRpmInput(prev => ({ ...prev, [activeCircuit]: e.target.value ? Number(e.target.value) : "" }))}

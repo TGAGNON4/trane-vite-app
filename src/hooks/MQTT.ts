@@ -13,7 +13,9 @@ const SENSOR_TOPICS = [
   "Space_Setpoint_Temperature",
   "Compressor_RPM",
   "Compressor_Current_RPM",
-  "HMI_Status"
+  "HMI_Status",
+  "VFD_Min_RPM",
+  "VFD_Max_RPM"
 ];
 // Circuit-level topics that carry text payloads (not numeric sensor data)
 const CIRCUIT_TEXT_TOPICS = ["Status", "Unit", "Session_Lock"];
