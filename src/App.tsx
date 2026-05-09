@@ -146,7 +146,6 @@ export default function App() {
     Circuit1: "unclaimed",
     Circuit2: "unclaimed"
   });
-  const intentionalReleaseRef = useRef<Record<CircuitKey, boolean>>({ Circuit1: false, Circuit2: false });
 
   // CoolProp-derived thermodynamic data published by the Pi
   const [satTable, setSatTable] = useState<Record<CircuitKey, SatRow[] | null>>({
@@ -387,12 +386,7 @@ export default function App() {
       if (payload === SESSION_TOKEN) {
         setLockStatus(prev => ({ ...prev, [circuit]: "owner" }));
       } else if (payload === "") {
-        if (!intentionalReleaseRef.current[circuit]) {
-          clientRef.current?.publish(`${circuit}/Session_Lock`, SESSION_TOKEN, { retain: true });
-          setLockStatus(prev => ({ ...prev, [circuit]: "owner" }));
-        } else {
-          setLockStatus(prev => ({ ...prev, [circuit]: "unclaimed" }));
-        }
+        setLockStatus(prev => ({ ...prev, [circuit]: "unclaimed" }));
       } else {
         setLockStatus(prev => ({ ...prev, [circuit]: "locked" }));
       }
@@ -609,13 +603,11 @@ export default function App() {
   };
 
   const releaseLock = (circuit: CircuitKey) => {
-    intentionalReleaseRef.current[circuit] = true;
     clientRef.current?.publish(`${circuit}/Session_Lock`, "", { retain: true });
     setLockStatus(prev => ({ ...prev, [circuit]: "unclaimed" }));
   };
 
   const claimLock = (circuit: CircuitKey) => {
-    intentionalReleaseRef.current[circuit] = false;
     clientRef.current?.publish(`${circuit}/Session_Lock`, SESSION_TOKEN, { retain: true });
     setLockStatus(prev => ({ ...prev, [circuit]: "owner" }));
   };
