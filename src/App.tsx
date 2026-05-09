@@ -5,7 +5,7 @@ import { SensorCard } from "./cmpnts/SensorCard";
 import { ThermoChart, type ThermoSensors, type SatRow, type StatePoints } from "./cmpnts/ThermoChart";
 import { useMqtt } from "./hooks/MQTT";
 import { pushRolling, saveToStorage, loadFromStorage } from "./utils/array_help";
-import { RPM_MIN, RPM_MAX, triggerDownload } from "./utils/app_helpers";
+import { RPM_MIN, RPM_MAX } from "./utils/app_helpers";
 import UserManual from "./cmpnts/UserManual";
 
 // -----------------
@@ -104,6 +104,8 @@ export default function App() {
   const [rangeStart, setRangeStart] = useState<string>("");
   const [rangeEnd, setRangeEnd] = useState<string>("");
   const lastDownloadDateRef = useRef<string>("");
+  const pendingDownloadRef = useRef<Set<string>>(new Set());
+  const [readyDownload, setReadyDownload] = useState<{ url: string; filename: string } | null>(null);
   const hasBackfilledRef = useRef<Record<CircuitKey, boolean>>({ Circuit1: false, Circuit2: false });
   const [tempSetpointInput, setTempSetpointInput] = useState<Record<CircuitKey, number | "">>({
     Circuit1: 5.0,
@@ -472,24 +474,30 @@ export default function App() {
       return;
     }
     if (name === "Temperature_Download") {
-      if (!payload) return;
+      if (!payload || !pendingDownloadRef.current.has("Temperature_Download")) return;
+      pendingDownloadRef.current.delete("Temperature_Download");
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      triggerDownload(parsed.body, `temps_${dateStr}.txt`);
+      const url = URL.createObjectURL(new Blob([parsed.body], { type: "text/plain" }));
+      setReadyDownload(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `temps_${dateStr}.txt` }; });
       return;
     }
     if (name === "Pressure_Download") {
-      if (!payload) return;
+      if (!payload || !pendingDownloadRef.current.has("Pressure_Download")) return;
+      pendingDownloadRef.current.delete("Pressure_Download");
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      triggerDownload(parsed.body, `pressures_${dateStr}.txt`);
+      const url = URL.createObjectURL(new Blob([parsed.body], { type: "text/plain" }));
+      setReadyDownload(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `pressures_${dateStr}.txt` }; });
       return;
     }
     if (name === "Setpoint_Download") {
-      if (!payload) return;
+      if (!payload || !pendingDownloadRef.current.has("Setpoint_Download")) return;
+      pendingDownloadRef.current.delete("Setpoint_Download");
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      triggerDownload(parsed.body, `setpoints_${dateStr}.txt`);
+      const url = URL.createObjectURL(new Blob([parsed.body], { type: "text/plain" }));
+      setReadyDownload(prev => { if (prev) URL.revokeObjectURL(prev.url); return { url, filename: `setpoints_${dateStr}.txt` }; });
       return;
     }
 
@@ -534,6 +542,7 @@ export default function App() {
     const dateStr = selectedDate || availableDates[0] || todayStr();
     lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
+      pendingDownloadRef.current.add("Temperature_Download");
       clientRef.current.publish(`Data/${activeCircuit}/Temperature_Download_Request`, dateStr);
     }
   };
@@ -542,6 +551,7 @@ export default function App() {
     const dateStr = selectedDate || availableDates[0] || todayStr();
     lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
+      pendingDownloadRef.current.add("Pressure_Download");
       clientRef.current.publish(`Data/${activeCircuit}/Pressure_Download_Request`, dateStr);
     }
   };
@@ -550,6 +560,7 @@ export default function App() {
     const dateStr = selectedDate || availableDates[0] || todayStr();
     lastDownloadDateRef.current = dateStr;
     if (clientRef.current?.connected) {
+      pendingDownloadRef.current.add("Setpoint_Download");
       clientRef.current.publish(`Data/${activeCircuit}/Setpoint_Download_Request`, dateStr);
     }
   };
@@ -959,6 +970,19 @@ export default function App() {
                 <button className="btn" onClick={requestPressureDownload}>Download Pressures</button>
                 <button className="btn" onClick={requestSetpointDownload}>Download Setpoints</button>
               </div>
+              {readyDownload && (
+                <div className="control-row" style={{ marginTop: "0.5rem" }}>
+                  <a
+                    className="btn"
+                    href={readyDownload.url}
+                    download={readyDownload.filename}
+                    onClick={() => setTimeout(() => { URL.revokeObjectURL(readyDownload.url); setReadyDownload(null); }, 500)}
+                  >
+                    Save {readyDownload.filename}
+                  </a>
+                  <button className="btn" onClick={() => { URL.revokeObjectURL(readyDownload.url); setReadyDownload(null); }}>Dismiss</button>
+                </div>
+              )}
               <div className="control-row" style={{ marginTop: "0.5rem" }}>
                 <button className="btn" onClick={showLive}>Live data</button>
               </div>
