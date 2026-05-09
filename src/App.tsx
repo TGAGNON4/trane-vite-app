@@ -5,7 +5,7 @@ import { SensorCard } from "./cmpnts/SensorCard";
 import { ThermoChart, type ThermoSensors, type SatRow, type StatePoints } from "./cmpnts/ThermoChart";
 import { useMqtt } from "./hooks/MQTT";
 import { pushRolling, saveToStorage, loadFromStorage } from "./utils/array_help";
-import { RPM_MIN, RPM_MAX } from "./utils/app_helpers";
+import { RPM_MIN, RPM_MAX, triggerDownload } from "./utils/app_helpers";
 import UserManual from "./cmpnts/UserManual";
 
 // -----------------
@@ -476,39 +476,21 @@ export default function App() {
       if (!payload) return;
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      const blob = new Blob([parsed.body], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `temps_${dateStr}.txt`;
-      link.click();
-      URL.revokeObjectURL(url);
+      triggerDownload(parsed.body, `temps_${dateStr}.txt`);
       return;
     }
     if (name === "Pressure_Download") {
       if (!payload) return;
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      const blob = new Blob([parsed.body], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `pressures_${dateStr}.txt`;
-      link.click();
-      URL.revokeObjectURL(url);
+      triggerDownload(parsed.body, `pressures_${dateStr}.txt`);
       return;
     }
     if (name === "Setpoint_Download") {
       if (!payload) return;
       const parsed = extractPayload(payload);
       const dateStr = parsed.date || lastDownloadDateRef.current || selectedDate || availableDates[0] || todayStr();
-      const blob = new Blob([parsed.body], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `setpoints_${dateStr}.txt`;
-      link.click();
-      URL.revokeObjectURL(url);
+      triggerDownload(parsed.body, `setpoints_${dateStr}.txt`);
       return;
     }
 

@@ -54,3 +54,24 @@ export const SETPOINT_MIN_C = 18.9;
 export const SETPOINT_MAX_C = 32;
 export const RPM_MIN = 2200;
 export const RPM_MAX = 4500;
+
+const isIOS = () =>
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+export function triggerDownload(content: string, filename: string): void {
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  if (isIOS()) {
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  } else {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+}
