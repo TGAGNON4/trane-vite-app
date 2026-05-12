@@ -146,6 +146,7 @@ export default function App() {
   });
   const [manualOpen, setManualOpen] = useState(false);
   const [startupNotice, setStartupNotice] = useState(true);
+  const [shutdownConfirm, setShutdownConfirm] = useState<CircuitKey | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [compressorStatus, setCompressorStatus] = useState<Record<CircuitKey, string | null>>({
@@ -640,8 +641,14 @@ export default function App() {
 
   const requestShutdown = (circuit: CircuitKey) => {
     if (!clientRef.current?.connected) return;
-    if (!window.confirm(`Shut down compressor for ${circuit}? It will ramp to minimum RPM.`)) return;
-    clientRef.current.publish(`Data/${circuit}/Compressor_Shutdown`, "1");
+    setShutdownConfirm(circuit);
+  };
+
+  const confirmShutdown = () => {
+    if (shutdownConfirm && clientRef.current?.connected) {
+      clientRef.current.publish(`Data/${shutdownConfirm}/Compressor_Shutdown`, "1");
+    }
+    setShutdownConfirm(null);
   };
 
   const requestStart = (circuit: CircuitKey) => {
@@ -992,6 +999,20 @@ export default function App() {
           </div>
         </main>
       </div>
+      {shutdownConfirm && (
+        <div className="startup-notice-overlay" onClick={() => setShutdownConfirm(null)}>
+          <div className="startup-notice" style={{ background: "#1a0a0a", borderColor: "#dc2626" }} onClick={e => e.stopPropagation()}>
+            <div className="startup-notice-title" style={{ color: "#f87171" }}>Confirm Shutdown</div>
+            <p className="startup-notice-body">
+              Shut down the compressor for <strong>{shutdownConfirm}</strong>? It will ramp down to minimum RPM before stopping.
+            </p>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button className="btn" style={{ background: "#dc2626", color: "#fff", flex: 1 }} onClick={confirmShutdown}>Shut down</button>
+              <button className="btn" style={{ flex: 1 }} onClick={() => setShutdownConfirm(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
       {startupNotice && (
         <div className="startup-notice-overlay" onClick={() => setStartupNotice(false)}>
           <div className="startup-notice" onClick={e => e.stopPropagation()}>
