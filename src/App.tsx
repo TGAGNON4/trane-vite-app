@@ -147,6 +147,7 @@ export default function App() {
   const [manualOpen, setManualOpen] = useState(false);
   const [startupNotice, setStartupNotice] = useState(true);
   const [shutdownConfirm, setShutdownConfirm] = useState<CircuitKey | null>(null);
+  const [iosNotice, setIosNotice] = useState(false);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [compressorStatus, setCompressorStatus] = useState<Record<CircuitKey, string | null>>({
@@ -312,10 +313,9 @@ export default function App() {
     const circuit = circuitPart as CircuitKey;
 
     if (topicPart === "Compressor_RPM") {
-      setRpmOverride(prev => ({
-        ...prev,
-        [circuit]: (Number.isFinite(val) && val > 0) ? val : null
-      }));
+      const active = Number.isFinite(val) && val > 0 ? val : null;
+      setRpmOverride(prev => ({ ...prev, [circuit]: active }));
+      if (active === null) setRpmInput(prev => ({ ...prev, [circuit]: "" }));
       return;
     }
 
@@ -548,8 +548,7 @@ export default function App() {
     }
   };
 
-  const iosDownloadBlocked = () =>
-    alert("Downloads are not supported on iOS. Please use a desktop browser to download data files.");
+  const iosDownloadBlocked = () => setIosNotice(true);
 
   const requestDownload = () => {
     if (isIOS) { iosDownloadBlocked(); return; }
@@ -645,7 +644,7 @@ export default function App() {
   };
 
   const confirmShutdown = () => {
-    if (shutdownConfirm && clientRef.current?.connected) {
+    if (shutdownConfirm && clientRef.current) {
       clientRef.current.publish(`Data/${shutdownConfirm}/Compressor_Shutdown`, "1");
     }
     setShutdownConfirm(null);
@@ -824,6 +823,8 @@ export default function App() {
             {(() => {
               const status = compressorStatus[activeCircuit];
               const isReadOnly = lockStatus[activeCircuit] === "locked";
+              const startDisabled  = isReadOnly || status !== "Off";
+              const shutdownDisabled = isReadOnly || status !== "Running";
               const locked = isReadOnly || status === null || status === "Starting" || status === "Shutting Down";
               const statusDisplay = status === null ? "Setting up ..."
                 : status === "Starting" ? "Ramping RPM up ..."
@@ -867,22 +868,22 @@ export default function App() {
                     <div style={{ display: "flex", gap: "0.5rem" }}>
                       <button
                         onClick={() => requestStart(activeCircuit)}
-                        disabled={locked}
+                        disabled={startDisabled}
                         style={{
                           flex: 1, padding: "0.6rem 0", fontWeight: 700, fontSize: "0.9rem",
-                          background: locked ? "#1a2e1a" : "#16a34a", border: "none", borderRadius: "0.4rem",
-                          color: locked ? "#4b5563" : "#fff", cursor: locked ? "not-allowed" : "pointer", letterSpacing: "0.02em",
+                          background: startDisabled ? "#1a2e1a" : "#16a34a", border: "none", borderRadius: "0.4rem",
+                          color: startDisabled ? "#4b5563" : "#fff", cursor: startDisabled ? "not-allowed" : "pointer", letterSpacing: "0.02em",
                         }}
                       >
                         Start
                       </button>
                       <button
                         onClick={() => requestShutdown(activeCircuit)}
-                        disabled={locked}
+                        disabled={shutdownDisabled}
                         style={{
                           flex: 1, padding: "0.6rem 0", fontWeight: 700, fontSize: "0.9rem",
-                          background: locked ? "#2e1a1a" : "#dc2626", border: "none", borderRadius: "0.4rem",
-                          color: locked ? "#4b5563" : "#fff", cursor: locked ? "not-allowed" : "pointer", letterSpacing: "0.02em",
+                          background: shutdownDisabled ? "#2e1a1a" : "#dc2626", border: "none", borderRadius: "0.4rem",
+                          color: shutdownDisabled ? "#4b5563" : "#fff", cursor: shutdownDisabled ? "not-allowed" : "pointer", letterSpacing: "0.02em",
                         }}
                       >
                         Shutdown
@@ -999,6 +1000,17 @@ export default function App() {
           </div>
         </main>
       </div>
+      {iosNotice && (
+        <div className="startup-notice-overlay" onClick={() => setIosNotice(false)}>
+          <div className="startup-notice" onClick={e => e.stopPropagation()}>
+            <div className="startup-notice-title">Downloads Not Supported on iOS</div>
+            <p className="startup-notice-body">
+              File downloads are not available on iOS. Please open the dashboard on a desktop browser to download data files.
+            </p>
+            <button className="btn" onClick={() => setIosNotice(false)}>OK</button>
+          </div>
+        </div>
+      )}
       {shutdownConfirm && (
         <div className="startup-notice-overlay" onClick={() => setShutdownConfirm(null)}>
           <div className="startup-notice" style={{ background: "#1a0a0a", borderColor: "#dc2626" }} onClick={e => e.stopPropagation()}>
