@@ -232,6 +232,16 @@ export default function App() {
   }, [displayUnits]);
 
   useEffect(() => {
+    circuits.forEach(c => {
+      const s = compressorStatus[c];
+      if (s === "Shutting Down" || s === "Off") {
+        setRpmOverride(prev => ({ ...prev, [c]: null }));
+        setRpmInput(prev => ({ ...prev, [c]: "" }));
+      }
+    });
+  }, [compressorStatus]);
+
+  useEffect(() => {
     if (!("wakeLock" in navigator)) return;
     let lock: WakeLockSentinel | null = null;
     const acquire = async () => {
